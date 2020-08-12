@@ -248,7 +248,7 @@ spec:
         - --strict-topology=true
         - --timeout=5m
         image: quay.io/k8scsi/csi-provisioner:v1.6.0
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         name: external-provisioner
         securityContext:
           readOnlyRootFilesystem: true

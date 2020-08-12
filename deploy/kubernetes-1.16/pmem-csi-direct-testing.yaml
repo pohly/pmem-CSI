@@ -269,7 +269,7 @@ spec:
         - --timeout=5m
         - -v=5
         image: quay.io/k8scsi/csi-provisioner:v1.6.0
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         name: external-provisioner
         securityContext:
           readOnlyRootFilesystem: true

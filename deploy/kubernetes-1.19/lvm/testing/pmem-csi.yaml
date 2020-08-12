@@ -6,6 +6,14 @@ metadata:
   name: pmem-csi-controller
   namespace: default
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    pmem-csi.intel.com/deployment: lvm-testing
+  name: pmem-csi-csi-provisioner
+  namespace: default
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -36,6 +44,24 @@ rules:
   - delete
   - update
   - create
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csistoragecapacities
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -119,18 +145,6 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - csistoragecapacities
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -282,14 +296,24 @@ spec:
         - mountPath: /var/lib/pmem-csi-coverage
           name: coverage-dir
       - args:
+        - --capacity-controller-deployment-mode=central
         - -v=3
         - --csi-address=/csi/csi-controller.sock
         - --feature-gates=Topology=true
         - --strict-topology=true
         - --timeout=5m
         - -v=5
-        image: localhost:5001/csi-provisioner:canary
-        imagePullPolicy: IfNotPresent
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: k8s.gcr.io/sig-storage/csi-provisioner:v2.0.0
+        imagePullPolicy: Always
         name: external-provisioner
         securityContext:
           readOnlyRootFilesystem: true
