@@ -65,10 +65,12 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.19.0-rc.4
 	k8s.io/kubectl => k8s.io/kubectl v0.19.0-rc.4
 	k8s.io/kubelet => k8s.io/kubelet v0.19.0-rc.4
-	k8s.io/kubernetes => k8s.io/kubernetes v1.19.0-rc.4
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.19.0-rc.4
 	k8s.io/metrics => k8s.io/metrics v0.19.0-rc.4
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.0-rc.4
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.19.0-rc.4
 	k8s.io/sample-controller => k8s.io/sample-controller v0.19.0-rc.4
 )
+
+// We need the fix from https://github.com/kubernetes/kubernetes/pull/94283
+replace k8s.io/kubernetes => github.com/jingxu97/kubernetes v1.3.0-alpha.3.0.20200827160453-c99083e14e00

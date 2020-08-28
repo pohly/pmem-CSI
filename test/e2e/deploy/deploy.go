@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/expfmt"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	pmemexec "github.com/intel/pmem-csi/pkg/exec"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -188,7 +190,7 @@ func WaitForPMEMDriver(c *Cluster, name, namespace string) (metricsURL string) {
 func CheckPMEMDriver(c *Cluster, deployment *Deployment) {
 	pods, err := c.cs.CoreV1().Pods(deployment.Namespace).List(context.Background(),
 		metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, deployment.Name),
+			LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, deployment.DeploymentLabel()),
 		},
 	)
 	framework.ExpectNoError(err, "list PMEM-CSI pods")
@@ -210,19 +212,19 @@ func CheckPMEMDriver(c *Cluster, deployment *Deployment) {
 // RemoveObjects deletes everything that might have been created for a
 // PMEM-CSI driver or operator installation (pods, daemonsets,
 // statefulsets, driver info, storage classes, etc.).
-func RemoveObjects(c *Cluster, deploymentName string) error {
+func RemoveObjects(c *Cluster, deployment *Deployment) error {
 	// Try repeatedly, in case that communication with the API server fails temporarily.
 	deadline, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
 
-	framework.Logf("deleting the %s PMEM-CSI deployment", deploymentName)
+	framework.Logf("deleting the %s PMEM-CSI deployment", deployment.Name)
 	for _, h := range uninstallHooks {
-		h(deploymentName)
+		h(deployment.Name)
 	}
 
 	filter := metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, deploymentName),
+		LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, deployment.DeploymentLabel()),
 	}
 	infoDelay := 5 * time.Second
 	infoTimestamp := time.Now().Add(infoDelay)
@@ -424,7 +426,7 @@ func RemoveObjects(c *Cluster, deploymentName string) error {
 		// check again whether all objects have been deleted.
 		select {
 		case <-deadline.Done():
-			return fmt.Errorf("timed out while trying to delete the %s PMEM-CSI deployment", deploymentName)
+			return fmt.Errorf("timed out while trying to delete the %s PMEM-CSI deployment", deployment.Name)
 		case <-ticker.C:
 		}
 	}
@@ -454,6 +456,10 @@ type Deployment struct {
 
 	// Testing is true when socat pods are available.
 	Testing bool
+
+	// A version of the format X.Y when installing an older
+	// release from the release-X.Y branch.
+	Version string
 }
 
 func (d Deployment) DeploymentMode() string {
@@ -461,6 +467,18 @@ func (d Deployment) DeploymentMode() string {
 		return "testing"
 	}
 	return "production"
+}
+
+// DeploymentLabel returns the label used for objects belonging to the deployment.
+// It's the same as the name minus the version. The reason for not including
+// the version in the label value is that previous releases did not
+// have that either. We have to stay consistent with that for up- and downgrade
+// testing.
+func (d Deployment) DeploymentLabel() string {
+	if d.Version != "" {
+		return d.Name[:len(d.Name)-1-len(d.Version)]
+	}
+	return d.Name
 }
 
 // FindDeployment checks whether there is a PMEM-CSI driver and/or
@@ -488,6 +506,8 @@ func FindDeployment(c *Cluster) (*Deployment, error) {
 	return nil, nil
 }
 
+var imageVersion = regexp.MustCompile(`pmem-csi-driver(?:-test)?:v(\d+\.\d+)`)
+
 func findDriver(c *Cluster) (*Deployment, error) {
 	list, err := c.cs.AppsV1().StatefulSets("").List(context.Background(), metav1.ListOptions{LabelSelector: deploymentLabel})
 	if err != nil {
@@ -503,6 +523,16 @@ func findDriver(c *Cluster) (*Deployment, error) {
 		return nil, fmt.Errorf("parse label of deployment %s: %v", list.Items[0].Name, err)
 	}
 	deployment.Namespace = list.Items[0].Namespace
+
+	// Derive the version from the image tag. The annotation doesn't include it.
+	for _, container := range list.Items[0].Spec.Template.Spec.Containers {
+		m := imageVersion.FindStringSubmatch(container.Image)
+		if m != nil {
+			deployment.Version = m[1]
+			deployment.Name = deployment.Name + "-" + deployment.Version
+			break
+		}
+	}
 
 	// Currently we don't support parallel installations, so all
 	// objects must belong to each other.
@@ -551,7 +581,7 @@ var allDeployments = []string{
 	"operator-lvm-production",
 	"operator-direct-production", // Uses kube-system, to ensure that deployment in a namespace also works.
 }
-var deploymentRE = regexp.MustCompile(`^(operator)?-?(\w*)?-?(testing|production)?$`)
+var deploymentRE = regexp.MustCompile(`^(operator)?-?(\w*)?-?(testing|production)?-?([0-9\.]*)$`)
 
 // Parse the deployment name and sets fields accordingly.
 func Parse(deploymentName string) (*Deployment, error) {
@@ -577,6 +607,7 @@ func Parse(deploymentName string) (*Deployment, error) {
 			return nil, fmt.Errorf("deployment name %s: %v", deploymentName, err)
 		}
 	}
+	deployment.Version = matches[4]
 
 	return deployment, nil
 }
@@ -603,71 +634,11 @@ func EnsureDeployment(deploymentName string) *Deployment {
 			ginkgo.CurrentGinkgoTestDescription().FullTestText,
 			deployment.Namespace,
 		))
-		c, err := NewCluster(f.ClientSet, f.DynamicClient)
 
 		// Remember list of volumes before test, using out-of-band host commands (i.e. not CSI API).
 		prevVol = GetHostVolumes(deployment)
 
-		framework.ExpectNoError(err, "get cluster information")
-		running, err := FindDeployment(c)
-		framework.ExpectNoError(err, "check for PMEM-CSI components")
-		if running != nil {
-			if reflect.DeepEqual(deployment, running) {
-				framework.Logf("reusing existing %s PMEM-CSI components", deployment.Name)
-				// Do some sanity checks on the running deployment before the test.
-				if deployment.HasDriver {
-					WaitForPMEMDriver(c, "pmem-csi", deployment.Namespace)
-					CheckPMEMDriver(c, deployment)
-				}
-				if deployment.HasOperator {
-					WaitForOperator(c, deployment.Namespace)
-				}
-				return
-			}
-			framework.Logf("have %s PMEM-CSI deployment, want %s -> delete existing deployment", running.Name, deployment.Name)
-			err := RemoveObjects(c, running.Name)
-			framework.ExpectNoError(err, "remove PMEM-CSI deployment")
-		}
-
-		if deployment.HasOperator {
-			// At the moment, the only supported deployment method is via test/start-operator.sh.
-			cmd := exec.Command("test/start-operator.sh")
-			cmd.Dir = os.Getenv("REPO_ROOT")
-			cmd.Env = append(os.Environ(),
-				"TEST_OPERATOR_NAMESPACE="+deployment.Namespace,
-				"TEST_OPERATOR_DEPLOYMENT="+deployment.Name)
-			cmd.Stdout = ginkgo.GinkgoWriter
-			cmd.Stderr = ginkgo.GinkgoWriter
-			err = cmd.Run()
-			framework.ExpectNoError(err, "create operator deployment: %q", deployment.Name)
-
-			WaitForOperator(c, deployment.Namespace)
-		}
-		if deployment.HasDriver {
-			if deployment.HasOperator {
-				// Deploy driver through operator.
-				dep := deployment.GetDriverDeployment()
-				EnsureDeploymentCR(f, dep)
-			} else {
-				// Deploy with script.
-				cmd := exec.Command("test/setup-deployment.sh")
-				cmd.Dir = os.Getenv("REPO_ROOT")
-				cmd.Env = append(os.Environ(),
-					"TEST_DEPLOYMENT_QUIET=quiet",
-					"TEST_DEPLOYMENTMODE="+deployment.DeploymentMode(),
-					"TEST_DEVICEMODE="+string(deployment.Mode))
-				cmd.Stdout = ginkgo.GinkgoWriter
-				cmd.Stderr = ginkgo.GinkgoWriter
-				err = cmd.Run()
-				framework.ExpectNoError(err, "create %s PMEM-CSI deployment", deployment.Name)
-			}
-
-			// We check for a running driver the same way at the moment, by directly
-			// looking at the driver state. Long-term we want the operator to do that
-			// checking itself.
-			WaitForPMEMDriver(c, "pmem-csi", deployment.Namespace)
-			CheckPMEMDriver(c, deployment)
-		}
+		EnsureDeploymentNow(f, deployment)
 
 		for _, h := range installHooks {
 			h(deployment)
@@ -695,6 +666,103 @@ func EnsureDeployment(deploymentName string) *Deployment {
 	return deployment
 }
 
+// EnsureDeploymentNow checks the currently running driver and replaces it if necessary.
+func EnsureDeploymentNow(f *framework.Framework, deployment *Deployment) {
+	c, err := NewCluster(f.ClientSet, f.DynamicClient)
+	framework.ExpectNoError(err, "get cluster information")
+	running, err := FindDeployment(c)
+	framework.ExpectNoError(err, "check for PMEM-CSI components")
+	if running != nil {
+		if reflect.DeepEqual(deployment, running) {
+			framework.Logf("reusing existing %s PMEM-CSI components", deployment.Name)
+			// Do some sanity checks on the running deployment before the test.
+			if deployment.HasDriver {
+				WaitForPMEMDriver(c, "pmem-csi", deployment.Namespace)
+				CheckPMEMDriver(c, deployment)
+			}
+			if deployment.HasOperator {
+				WaitForOperator(c, deployment.Namespace)
+			}
+			return
+		}
+		framework.Logf("have %s PMEM-CSI deployment, want %s -> delete existing deployment", running.Name, deployment.Name)
+		err := RemoveObjects(c, running)
+		framework.ExpectNoError(err, "remove PMEM-CSI deployment")
+	}
+
+	if deployment.HasOperator {
+		if deployment.Version != "" {
+			framework.Failf("installing PMEM-CSI %s via the operator is not supported", deployment.Version)
+		}
+
+		// At the moment, the only supported deployment method is via test/start-operator.sh.
+		cmd := exec.Command("test/start-operator.sh")
+		cmd.Dir = os.Getenv("REPO_ROOT")
+		cmd.Env = append(os.Environ(),
+			"TEST_OPERATOR_NAMESPACE="+deployment.Namespace,
+			"TEST_OPERATOR_DEPLOYMENT="+deployment.Name)
+		cmd.Stdout = ginkgo.GinkgoWriter
+		cmd.Stderr = ginkgo.GinkgoWriter
+		err = cmd.Run()
+		framework.ExpectNoError(err, "create operator deployment: %q", deployment.Name)
+
+		WaitForOperator(c, deployment.Namespace)
+	}
+	if deployment.HasDriver {
+		if deployment.HasOperator {
+			// Deploy driver through operator.
+			dep := deployment.GetDriverDeployment()
+			EnsureDeploymentCR(f, dep)
+		} else {
+			// Deploy with script.
+			root := os.Getenv("REPO_ROOT")
+			env := os.Environ()
+			if deployment.Version != "" {
+				// Clean check out in _work/pmem-csi-release-<version>.
+				// Pulling from remote must be done before running the test.
+				workRoot := root + "/_work/pmem-csi-release-" + deployment.Version
+				err := os.RemoveAll(workRoot)
+				framework.ExpectNoError(err, "remove PMEM-CSI source code")
+				_, err = pmemexec.RunCommand("git", "clone", "--shared", root, workRoot)
+				framework.ExpectNoError(err, "clone repo", deployment.Version)
+				rev, err := pmemexec.RunCommand("git", "rev-parse", "origin/release-0.7")
+				framework.ExpectNoError(err, "determine release-%s of PMEM-CSI", deployment.Version)
+				_, err = pmemexec.RunCommand("git", "-C", workRoot, "checkout", strings.TrimSpace(rev))
+				framework.ExpectNoError(err, "check out release-%s = %s of PMEM-CSI", deployment.Version, rev)
+				root = workRoot
+
+				// The release branch does not pull from Docker Hub by default,
+				// we have to select that explicitly.
+				env = append(env, "TEST_PMEM_REGISTRY=intel")
+
+				// The setup script expects to have
+				// the same _work as in the normal
+				// root.
+				err = os.Symlink("../../_work", workRoot+"/_work")
+				framework.ExpectNoError(err, "symlink the _work directory")
+			}
+			cmd := exec.Command("test/setup-deployment.sh")
+			cmd.Dir = root
+			env = append(env,
+				"REPO_ROOT="+root,
+				"TEST_DEPLOYMENT_QUIET=quiet",
+				"TEST_DEPLOYMENTMODE="+deployment.DeploymentMode(),
+				"TEST_DEVICEMODE="+string(deployment.Mode))
+			cmd.Env = env
+			cmd.Stdout = ginkgo.GinkgoWriter
+			cmd.Stderr = ginkgo.GinkgoWriter
+			err = cmd.Run()
+			framework.ExpectNoError(err, "create %s PMEM-CSI deployment", deployment.Name)
+		}
+
+		// We check for a running driver the same way at the moment, by directly
+		// looking at the driver state. Long-term we want the operator to do that
+		// checking itself.
+		WaitForPMEMDriver(c, "pmem-csi", deployment.Namespace)
+		CheckPMEMDriver(c, deployment)
+	}
+}
+
 // GetDriverDeployment returns the spec for the driver deployment that is used
 // for deployments like operator-lvm-production.
 func (d *Deployment) GetDriverDeployment() api.Deployment {
@@ -708,12 +776,12 @@ func (d *Deployment) GetDriverDeployment() api.Deployment {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "pmem-csi",
 			Labels: map[string]string{
-				deploymentLabel: d.Name,
+				deploymentLabel: d.DeploymentLabel(),
 			},
 		},
 		Spec: api.DeploymentSpec{
 			Labels: map[string]string{
-				deploymentLabel: d.Name,
+				deploymentLabel: d.DeploymentLabel(),
 			},
 			// TODO: replace pmemcsidriver.DeviceMode with api.DeviceMode everywhere
 			// and remove this cast here.
@@ -729,7 +797,7 @@ func (d *Deployment) GetDriverDeployment() api.Deployment {
 // DeleteAllPods deletes all currently running pods that belong to the deployment.
 func (d Deployment) DeleteAllPods(c *Cluster) error {
 	listOptions := metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, d.Name),
+		LabelSelector: fmt.Sprintf("%s in (%s)", deploymentLabel, d.DeploymentLabel()),
 	}
 	pods, err := c.cs.CoreV1().Pods(d.Namespace).List(context.Background(), listOptions)
 	if err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/intel/pmem-csi/test/e2e/ephemeral"
 	"github.com/intel/pmem-csi/test/e2e/storage/dax"
 	"github.com/intel/pmem-csi/test/e2e/storage/scheduler"
+	"github.com/intel/pmem-csi/test/e2e/versionskew"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -61,6 +62,7 @@ var _ = deploy.DescribeForAll("E2E", func(d *deploy.Deployment) {
 		testsuites.InitVolumesTestSuite,
 		dax.InitDaxTestSuite,
 		scheduler.InitSchedulerTestSuite,
+		versionskew.InitSkewTestSuite,
 	}
 
 	if ephemeral.Supported {
