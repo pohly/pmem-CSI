@@ -137,14 +137,6 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - volumeattachments
-  verbs:
-  - get
-  - list
-  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -297,7 +289,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: quay.io/k8scsi/csi-provisioner:v2.0.0
+        image: pohly/csi-provisioner:v2.1.0-pre
         imagePullPolicy: IfNotPresent
         name: external-provisioner
         ports:

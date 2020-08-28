@@ -8,6 +8,7 @@ resources:
 # The RBAC files must match the image versions.
 images:
 - name: quay.io/k8scsi/csi-provisioner
-  newTag: v2.0.0
+  newTag: v2.1.0-pre
+  newName: pohly/csi-provisioner
 - name: quay.io/k8scsi/csi-node-driver-registrar
   newTag: v1.2.0

@@ -166,8 +166,8 @@ const (
 	// DefaultDriverImage default PMEM-CSI driver docker image
 	DefaultDriverImage = defaultDriverImageName + ":" + defaultDriverImageTag
 
-	defaultProvisionerImageName = "quay.io/k8scsi/csi-provisioner"
-	defaultProvisionerImageTag  = "v2.0.0"
+	defaultProvisionerImageName = "pohly/csi-provisioner"
+	defaultProvisionerImageTag  = "v2.1.0-pre"
 	// DefaultProvisionerImage default external provisioner image to use
 	DefaultProvisionerImage = defaultProvisionerImageName + ":" + defaultProvisionerImageTag
 
