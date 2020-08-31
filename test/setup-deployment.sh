@@ -188,7 +188,7 @@ EOF
         ${SSH} rm -rf "$tmpdir"
     else
         case "$path" in
-            */scheduler|*/webhook)
+            */scheduler|*/webhook|*/*storageclass*)
                 # optional, continue
                 :
                 ;;
