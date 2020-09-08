@@ -1,9 +1,12 @@
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: pmem-csi-hook
 webhooks:
   - name: pod-hook.pmem-csi.intel.com
+    admissionReviewVersions:
+    - v1beta1 # Depends on support in sigs.k8s.io/controller-runtime/pkg/webhook/admission
+    sideEffects: None
     namespaceSelector:
       matchExpressions:
       - key: pmem-csi.intel.com/webhook

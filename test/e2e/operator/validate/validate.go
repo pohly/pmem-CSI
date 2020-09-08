@@ -425,11 +425,15 @@ func prettyPrintObjectID(object unstructured.Unstructured) string {
 // A list of all object types potentially created by the
 // operator. It's okay and desirable to list more than actually used
 // at the moment, to catch new objects.
+//
+// The version must match the one from the current reference file. The API server
+// will convert objects of a different version automatically into the expected
+// version.
 var allObjectTypes = []schema.GroupVersionKind{
 	schema.GroupVersionKind{"", "v1", "SecretList"},
 	schema.GroupVersionKind{"", "v1", "ServiceList"},
 	schema.GroupVersionKind{"", "v1", "ServiceAccountList"},
-	schema.GroupVersionKind{"admissionregistration.k8s.io", "v1beta1", "MutatingWebhookConfigurationList"},
+	schema.GroupVersionKind{"admissionregistration.k8s.io", "v1", "MutatingWebhookConfigurationList"},
 	schema.GroupVersionKind{"apps", "v1", "DaemonSetList"},
 	schema.GroupVersionKind{"apps", "v1", "DeploymentList"},
 	schema.GroupVersionKind{"apps", "v1", "ReplicaSetList"},
@@ -438,7 +442,7 @@ var allObjectTypes = []schema.GroupVersionKind{
 	schema.GroupVersionKind{"rbac.authorization.k8s.io", "v1", "ClusterRoleBindingList"},
 	schema.GroupVersionKind{"rbac.authorization.k8s.io", "v1", "RoleList"},
 	schema.GroupVersionKind{"rbac.authorization.k8s.io", "v1", "RoleBindingList"},
-	schema.GroupVersionKind{"storage.k8s.io", "v1beta1", "CSIDriverList"},
+	schema.GroupVersionKind{"storage.k8s.io", "v1", "CSIDriverList"},
 }
 
 func listAllDeployedObjects(client client.Client, deployment api.Deployment) ([]unstructured.Unstructured, error) {

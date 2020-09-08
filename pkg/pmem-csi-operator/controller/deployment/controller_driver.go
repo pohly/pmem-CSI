@@ -23,7 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -367,17 +367,17 @@ func (d *PmemCSIDriver) getOwnerReference() metav1.OwnerReference {
 	}
 }
 
-func (d *PmemCSIDriver) getCSIDriver() *storagev1beta1.CSIDriver {
+func (d *PmemCSIDriver) getCSIDriver() *storagev1.CSIDriver {
 	attachRequired := false
 	podInfoOnMount := true
 
-	csiDriver := &storagev1beta1.CSIDriver{
+	csiDriver := &storagev1.CSIDriver{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CSIDriver",
-			APIVersion: "storage.k8s.io/v1beta1",
+			APIVersion: "storage.k8s.io/v1",
 		},
 		ObjectMeta: d.getObjectMeta(d.GetName(), true),
-		Spec: storagev1beta1.CSIDriverSpec{
+		Spec: storagev1.CSIDriverSpec{
 			AttachRequired: &attachRequired,
 			PodInfoOnMount: &podInfoOnMount,
 		},
@@ -385,9 +385,9 @@ func (d *PmemCSIDriver) getCSIDriver() *storagev1beta1.CSIDriver {
 
 	// Volume lifecycle modes are supported only after k8s v1.16
 	if d.k8sVersion.Compare(1, 16) >= 0 {
-		csiDriver.Spec.VolumeLifecycleModes = []storagev1beta1.VolumeLifecycleMode{
-			storagev1beta1.VolumeLifecyclePersistent,
-			storagev1beta1.VolumeLifecycleEphemeral,
+		csiDriver.Spec.VolumeLifecycleModes = []storagev1.VolumeLifecycleMode{
+			storagev1.VolumeLifecyclePersistent,
+			storagev1.VolumeLifecycleEphemeral,
 		}
 	}
 

@@ -183,7 +183,7 @@ commonLabels:
 patchesJson6902:
   - target:
       group: admissionregistration.k8s.io
-      version: v1beta1
+      version: v1
       kind: MutatingWebhookConfiguration
       name: pmem-csi-hook
     path: webhook-patch.yaml
