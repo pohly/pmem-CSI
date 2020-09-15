@@ -19,6 +19,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -29,7 +30,10 @@ import (
 	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"
 
+	"github.com/pkg/errors"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2ekubectl "k8s.io/kubernetes/test/e2e/framework/kubectl"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
@@ -110,6 +114,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	}
 	podlogs.CopyAllLogs(ctx, c, "default", to)
 	podlogs.WatchPods(ctx, c, "default", ginkgo.GinkgoWriter)
+	if err := WatchVolumeAttachments(ctx, c, ginkgo.GinkgoWriter); err != nil {
+		framework.Logf("Unexpected error watching volume attachements: %v", err)
+	}
 
 	dc := c.DiscoveryClient
 
@@ -154,4 +161,40 @@ func RunE2ETests(t *testing.T) {
 		r = append(r, reporters.NewJUnitReporter(path.Join(framework.TestContext.ReportDir, fmt.Sprintf("junit_%v%02d.xml", framework.TestContext.ReportPrefix, config.GinkgoConfig.ParallelNode))))
 	}
 	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "PMEM E2E suite", r)
+}
+
+// WatchVolumeAttachments prints VolumeAttachment events.
+func WatchVolumeAttachments(ctx context.Context, cs clientset.Interface, to io.Writer) error {
+	watcher, err := cs.StorageV1().VolumeAttachments().Watch(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return errors.Wrap(err, "cannot create VolumeAttachment event watcher")
+	}
+
+	go func() {
+		defer watcher.Stop()
+		for {
+			select {
+			case e := <-watcher.ResultChan():
+				if e.Object == nil {
+					continue
+				}
+
+				va, ok := e.Object.(*storagev1.VolumeAttachment)
+				if !ok {
+					continue
+				}
+				fmt.Fprintf(to,
+					"VolumeAttachment change: %s: %s spec %+v, status %+v\n",
+					e.Type,
+					va.Name,
+					va.Spec,
+					va.Status,
+				)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
 }
