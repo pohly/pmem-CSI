@@ -167,7 +167,7 @@ const (
 	DefaultDriverImage = defaultDriverImageName + ":" + defaultDriverImageTag
 
 	defaultProvisionerImageName = "quay.io/k8scsi/csi-provisioner"
-	defaultProvisionerImageTag  = "v1.6.0"
+	defaultProvisionerImageTag  = "v2.0.0"
 	// DefaultProvisionerImage default external provisioner image to use
 	DefaultProvisionerImage = defaultProvisionerImageName + ":" + defaultProvisionerImageTag
 
