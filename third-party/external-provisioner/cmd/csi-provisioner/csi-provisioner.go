@@ -116,6 +116,11 @@ func main() {
 		klog.Fatal(err)
 	}
 
+	node := os.Getenv("NODE_NAME")
+	if *enableNodeCheck && node == "" {
+		klog.Fatal("The NODE_NAME environment variable must be set when using --enable-node-check.")
+	}
+
 	if *showVersion {
 		fmt.Println(os.Args[0], version)
 		os.Exit(0)
@@ -193,6 +198,9 @@ func main() {
 	// Generate a unique ID for this provisioner
 	timeStamp := time.Now().UnixNano() / int64(time.Millisecond)
 	identity := strconv.FormatInt(timeStamp, 10) + "-" + strconv.Itoa(rand.Intn(10000)) + "-" + provisionerName
+	if *enableNodeCheck {
+		identity = identity + "-" + node
+	}
 
 	factory := informers.NewSharedInformerFactory(clientset, ctrl.ResyncPeriodOfCsiNodeInformer)
 	var factoryForNamespace informers.SharedInformerFactory // usually nil, only used for CSIStorageCapacity
@@ -248,6 +256,18 @@ func main() {
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
+	var nodeCheck *ctrl.NodeCheck
+	if *enableNodeCheck {
+		nodeCheck = &ctrl.NodeCheck{
+			NodeName:      node,
+			ClaimInformer: factory.Core().V1().PersistentVolumeClaims(),
+		}
+		nodeInfo, err := ctrl.GetNodeInfo(grpcClient, *operationTimeout)
+		if err != nil {
+			klog.Fatalf("Failed to get node info from CSI driver: %v", err)
+		}
+		nodeCheck.NodeInfo = *nodeInfo
+	}
 	csiProvisioner := ctrl.NewCSIProvisioner(
 		clientset,
 		*operationTimeout,
@@ -270,7 +290,7 @@ func main() {
 		vaLister,
 		*extraCreateMetadata,
 		*defaultFSType,
-		*enableNodeCheck,
+		nodeCheck,
 	)
 
 	provisionController = controller.NewProvisionController(

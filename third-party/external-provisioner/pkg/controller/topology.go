@@ -36,6 +36,7 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	storagelistersv1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/apis/core/v1/helper"
 )
 
 // topologyTerm represents a single term where its topology key value pairs are AND'd together.
@@ -70,6 +71,21 @@ func GenerateVolumeNodeAffinity(accessibleTopology []*csi.Topology) *v1.VolumeNo
 			NodeSelectorTerms: terms,
 		},
 	}
+}
+
+// VolumeIsAccessible checks whether the generated volume affinity is satisfied by
+// a the node topology that a CSI driver reported in GetNodeInfoResponse.
+func VolumeIsAccessible(affinity *v1.VolumeNodeAffinity, nodeTopology *csi.Topology) bool {
+	if nodeTopology == nil || affinity == nil || affinity.Required == nil {
+		// No topology information -> all volumes accessible.
+		return true
+	}
+
+	nodeLabels := labels.Set{}
+	for k, v := range nodeTopology.Segments {
+		nodeLabels[k] = v
+	}
+	return helper.MatchNodeSelectorTerms(affinity.Required.NodeSelectorTerms, nodeLabels, nil /* no node fields */)
 }
 
 // SupportsTopology returns whether topology is supported both for plugin and external provisioner
