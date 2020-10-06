@@ -162,9 +162,13 @@ apiServer:
   extraArgs:
     feature-gates: ${TEST_FEATURE_GATES}
     $(case "$k8sversion" in v1.1[5678]*) : ;; *) echo "runtime-config: storage.k8s.io/v1alpha1";; esac)
+    insecure-port: '8080'
 controllerManager:
   extraArgs:
     feature-gates: ${TEST_FEATURE_GATES}
+    # Insecure port, required for https://github.com/kubernetes/perf-tests/tree/master/clusterloader2,
+    # or rather k8s.io/kubernetes/test/e2e/framework/metrics/metrics_grabber.go.
+    port: '10252'
 scheduler:
   extraVolumes:
     - name: config
@@ -187,6 +191,7 @@ scheduler:
       readOnly: true
   extraArgs:
     feature-gates: ${TEST_FEATURE_GATES}
+    port: '10251'
     $(if [ -e /var/lib/scheduler/scheduler-config.yaml ]; then echo 'config: /var/lib/scheduler/scheduler-config.yaml'; fi)
 "
 
