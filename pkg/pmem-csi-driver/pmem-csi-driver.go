@@ -51,7 +51,7 @@ type DriverMode string
 
 func (mode *DriverMode) Set(value string) error {
 	switch value {
-	case string(Controller), string(Node):
+	case string(Controller), string(Node), string(Both):
 		*mode = DriverMode(value)
 	default:
 		// The flag package will add the value to the final output, no need to do it here.
@@ -71,6 +71,8 @@ const (
 	Controller DriverMode = "controller"
 	//Node definition for noder driver mode
 	Node DriverMode = "node"
+	// Node driver with support for provisioning.
+	Both DriverMode = "both"
 )
 
 var (
@@ -322,7 +324,7 @@ func (csid *csiDriver) Run() error {
 		if _, err := csid.startScheduler(ctx, cancel, rs); err != nil {
 			return err
 		}
-	case Node:
+	case Node, Both:
 		dm, err := pmdmanager.New(csid.cfg.DeviceManager, csid.cfg.PmemPercentage)
 		if err != nil {
 			return err
@@ -334,25 +336,27 @@ func (csid *csiDriver) Run() error {
 		cs := NewNodeControllerServer(csid.cfg.NodeID, dm, sm)
 		ns := NewNodeServer(cs, filepath.Clean(csid.cfg.StateBasePath)+"/mount")
 
-		// Internal CSI calls are tracked on the server side
-		// with a custom "pmem_csi_node" subsystem. The
-		// corresponding client calls use "pmem_csi_controller" with
-		// a tag that identifies the node that is being called.
-		cmmInternal := metrics.NewCSIMetricsManagerWithOptions(csid.cfg.DriverName,
-			metrics.WithSubsystem("pmem_csi_node"),
-			// Always add the instance label to allow correlating with
-			// the controller calls.
-			metrics.WithLabels(map[string]string{registryserver.NodeLabel: csid.cfg.NodeID}),
-		)
-		csid.gatherers = append(csid.gatherers, cmmInternal.GetRegistry())
-		if err := s.Start(csid.cfg.ControllerEndpoint, csid.serverTLSConfig, cmmInternal, cs); err != nil {
-			return err
-		}
-		if err := csid.registerNodeController(); err != nil {
-			return err
+		if csid.cfg.Mode == Node {
+			// Internal CSI calls are tracked on the server side
+			// with a custom "pmem_csi_node" subsystem. The
+			// corresponding client calls use "pmem_csi_controller" with
+			// a tag that identifies the node that is being called.
+			cmmInternal := metrics.NewCSIMetricsManagerWithOptions(csid.cfg.DriverName,
+				metrics.WithSubsystem("pmem_csi_node"),
+				// Always add the instance label to allow correlating with
+				// the controller calls.
+				metrics.WithLabels(map[string]string{registryserver.NodeLabel: csid.cfg.NodeID}),
+			)
+			csid.gatherers = append(csid.gatherers, cmmInternal.GetRegistry())
+			if err := s.Start(csid.cfg.ControllerEndpoint, csid.serverTLSConfig, cmmInternal, cs); err != nil {
+				return err
+			}
+			if err := csid.registerNodeController(); err != nil {
+				return err
+			}
 		}
 		services := []grpcserver.Service{ids, ns}
-		if csid.cfg.TestEndpoint {
+		if csid.cfg.TestEndpoint || csid.cfg.Mode == Both {
 			services = append(services, cs)
 		}
 		if err := s.Start(csid.cfg.Endpoint, nil, cmm, services...); err != nil {
