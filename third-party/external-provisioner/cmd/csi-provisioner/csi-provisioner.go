@@ -88,7 +88,7 @@ var (
 	capacityImmediateBinding = flag.Bool("capacity-for-immediate-binding", false, "Enables producing capacity information for storage classes with immediate binding. Not needed for the Kubernetes scheduler, maybe useful for other consumers or for debugging.")
 	capacityPollInterval     = flag.Duration("capacity-poll-interval", time.Minute, "How long the external-provisioner waits before checking for storage capacity changes.")
 	capacityOwnerrefLevel    = flag.Int("capacity-ownerref-level", 1, "The level indicates the number of objects that need to be traversed starting from the pod identified by the POD_NAME and POD_NAMESPACE environment variables to reach the owning object for CSIStorageCapacity objects: 0 for the pod itself, 1 for a StatefulSet, 2 for a Deployment, etc.")
-	enableNodeCheck          = flag.Bool("enable-node-check", false, "Enables a check to see that the node selected by the scheduler for provisioning is this node.")
+	enableNodeDeployment     = flag.Bool("node-deployment", false, "Enables deploying the external-provisioner together with a CSI driver on nodes to manage node-local volumes.")
 
 	featureGates        map[string]bool
 	provisionController *controller.ProvisionController
@@ -117,8 +117,8 @@ func main() {
 	}
 
 	node := os.Getenv("NODE_NAME")
-	if *enableNodeCheck && node == "" {
-		klog.Fatal("The NODE_NAME environment variable must be set when using --enable-node-check.")
+	if *enableNodeDeployment && node == "" {
+		klog.Fatal("The NODE_NAME environment variable must be set when using --enable-node-deployment.")
 	}
 
 	if *showVersion {
@@ -198,7 +198,7 @@ func main() {
 	// Generate a unique ID for this provisioner
 	timeStamp := time.Now().UnixNano() / int64(time.Millisecond)
 	identity := strconv.FormatInt(timeStamp, 10) + "-" + strconv.Itoa(rand.Intn(10000)) + "-" + provisionerName
-	if *enableNodeCheck {
+	if *enableNodeDeployment {
 		identity = identity + "-" + node
 	}
 
@@ -256,9 +256,9 @@ func main() {
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
-	var nodeCheck *ctrl.NodeCheck
-	if *enableNodeCheck {
-		nodeCheck = &ctrl.NodeCheck{
+	var nodeDeployment *ctrl.NodeDeployment
+	if *enableNodeDeployment {
+		nodeDeployment = &ctrl.NodeDeployment{
 			NodeName:      node,
 			ClaimInformer: factory.Core().V1().PersistentVolumeClaims(),
 		}
@@ -266,7 +266,7 @@ func main() {
 		if err != nil {
 			klog.Fatalf("Failed to get node info from CSI driver: %v", err)
 		}
-		nodeCheck.NodeInfo = *nodeInfo
+		nodeDeployment.NodeInfo = *nodeInfo
 	}
 	csiProvisioner := ctrl.NewCSIProvisioner(
 		clientset,
@@ -290,7 +290,7 @@ func main() {
 		vaLister,
 		*extraCreateMetadata,
 		*defaultFSType,
-		nodeCheck,
+		nodeDeployment,
 	)
 
 	provisionController = controller.NewProvisionController(

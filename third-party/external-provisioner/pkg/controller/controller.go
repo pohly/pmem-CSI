@@ -206,16 +206,16 @@ type requiredCapabilities struct {
 	clone    bool
 }
 
-// NodeCheck contains additional parameters for running external-provisioner alongside a
+// NodeDeployment contains additional parameters for running external-provisioner alongside a
 // CSI driver on one or more nodes in the cluster.
-type NodeCheck struct {
+type NodeDeployment struct {
 	NodeName      string
 	ClaimInformer coreinformers.PersistentVolumeClaimInformer
 	NodeInfo      csi.NodeGetInfoResponse
 }
 
-type internalNodeCheck struct {
-	NodeCheck
+type internalNodeDeployment struct {
+	NodeDeployment
 	rateLimiter workqueue.RateLimiter
 }
 
@@ -244,7 +244,7 @@ type csiProvisioner struct {
 	vaLister                              storagelistersv1.VolumeAttachmentLister
 	extraCreateMetadata                   bool
 	eventRecorder                         record.EventRecorder
-	nodeCheck                             *internalNodeCheck
+	nodeDeployment                        *internalNodeDeployment
 }
 
 var _ controller.Provisioner = &csiProvisioner{}
@@ -322,7 +322,7 @@ func NewCSIProvisioner(client kubernetes.Interface,
 	vaLister storagelistersv1.VolumeAttachmentLister,
 	extraCreateMetadata bool,
 	defaultFSType string,
-	nodeCheck *NodeCheck,
+	nodeDeployment *NodeDeployment,
 ) controller.Provisioner {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -356,7 +356,7 @@ func NewCSIProvisioner(client kubernetes.Interface,
 		extraCreateMetadata:                   extraCreateMetadata,
 		eventRecorder:                         eventRecorder,
 	}
-	if nodeCheck != nil {
+	if nodeDeployment != nil {
 		// The base delay configures the rate limiting which
 		// prevents concurrent external-provisioner instances
 		// to start working on a new PVC all at the
@@ -383,19 +383,19 @@ func NewCSIProvisioner(client kubernetes.Interface,
 		// on their needs.
 		baseDelay := 10 * time.Second
 
-		provisioner.nodeCheck = &internalNodeCheck{
-			NodeCheck:   *nodeCheck,
-			rateLimiter: newItemExponentialFailureRateLimiterWithJitter(baseDelay, 256*baseDelay),
+		provisioner.nodeDeployment = &internalNodeDeployment{
+			NodeDeployment: *nodeDeployment,
+			rateLimiter:    newItemExponentialFailureRateLimiterWithJitter(baseDelay, 256*baseDelay),
 		}
 		// Remove deleted PVCs from rate limiter.
 		claimHandler := cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
 				if claim, ok := obj.(*v1.PersistentVolumeClaim); ok {
-					provisioner.nodeCheck.rateLimiter.Forget(claim.UID)
+					provisioner.nodeDeployment.rateLimiter.Forget(claim.UID)
 				}
 			},
 		}
-		provisioner.nodeCheck.ClaimInformer.Informer().AddEventHandler(claimHandler)
+		provisioner.nodeDeployment.ClaimInformer.Informer().AddEventHandler(claimHandler)
 	}
 
 	return provisioner
@@ -725,7 +725,7 @@ func (p *csiProvisioner) Provision(ctx context.Context, options controller.Provi
 	}
 	if !owned {
 		return nil, controller.ProvisioningNoChange, &controller.IgnoredError{
-			Reason: fmt.Sprintf("not responsible for provisioning of PVC %s/%s because it is not assigned to node %q", claim.Namespace, claim.Name, p.nodeCheck.NodeName),
+			Reason: fmt.Sprintf("not responsible for provisioning of PVC %s/%s because it is not assigned to node %q", claim.Namespace, claim.Name, p.nodeDeployment.NodeName),
 		}
 	}
 
@@ -1127,7 +1127,7 @@ func (p *csiProvisioner) Delete(ctx context.Context, volume *v1.PersistentVolume
 	// If we run on a single node, then we shouldn't delete volumes
 	// that we didn't create. In practice, that means that the volume
 	// is accessible (only!) on this node.
-	if p.nodeCheck != nil && !VolumeIsAccessible(volume.Spec.NodeAffinity, p.nodeCheck.NodeInfo.AccessibleTopology) {
+	if p.nodeDeployment != nil && !VolumeIsAccessible(volume.Spec.NodeAffinity, p.nodeDeployment.NodeInfo.AccessibleTopology) {
 		return &controller.IgnoredError{
 			Reason: "PV was not provisioned on this node",
 		}
@@ -1256,7 +1256,7 @@ func (p *csiProvisioner) volumeHandleToId(handle string) string {
 // on the current node. Returns true if provisioning can proceed, an error
 // in case of a failure that prevented checking.
 func (p *csiProvisioner) checkNode(ctx context.Context, claim *v1.PersistentVolumeClaim) (bool, error) {
-	if p.nodeCheck == nil {
+	if p.nodeDeployment == nil {
 		return true, nil
 	}
 
@@ -1280,7 +1280,7 @@ func (p *csiProvisioner) checkNode(ctx context.Context, claim *v1.PersistentVolu
 		//   fail the same way, but then has a chance to inform the user via events
 		//
 		// We do the latter.
-		hasCapacity, err := p.checkCapacity(ctx, claim, p.nodeCheck.NodeName)
+		hasCapacity, err := p.checkCapacity(ctx, claim, p.nodeDeployment.NodeName)
 		if err != nil {
 			klog.V(3).Infof("proceeding with becoming owner although the capacity check failed: %v", err)
 		} else if !hasCapacity {
@@ -1291,7 +1291,7 @@ func (p *csiProvisioner) checkNode(ctx context.Context, claim *v1.PersistentVolu
 		// A lot of different external-provisioner instances will try to do this at the same time.
 		// To avoid the thundering herd problem, we sleep in becomeOwner for a short random amount of time
 		// (for new PVCs) or exponentially increasing time (for PVCs were we already had a conflict).
-		pvc, err := p.nodeCheck.becomeOwner(ctx, p.client, claim)
+		pvc, err := p.nodeDeployment.becomeOwner(ctx, p.client, claim)
 		if err == nil && pvc == nil {
 			// Definitely not the owner. Ignore it.
 			return false, nil
@@ -1299,7 +1299,7 @@ func (p *csiProvisioner) checkNode(ctx context.Context, claim *v1.PersistentVolu
 		if err != nil {
 			return false, fmt.Errorf("PVC %s/%s: %v", claim.Namespace, claim.Name, err)
 		}
-	case p.nodeCheck.NodeName:
+	case p.nodeDeployment.NodeName:
 		// Our node is selected.
 	default:
 		// Some other node is selected, ignore it.
@@ -1367,7 +1367,7 @@ func (p *csiProvisioner) checkCapacity(ctx context.Context, claim *v1.Persistent
 // becomeOwner updates the PVC with the current node as selected node.
 // Returns an error if something unexpectedly failed, otherwise an updated PVC with
 // the current node selected or nil if not the owner.
-func (nc *internalNodeCheck) becomeOwner(ctx context.Context, client kubernetes.Interface, claim *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+func (nc *internalNodeDeployment) becomeOwner(ctx context.Context, client kubernetes.Interface, claim *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
 	attempts := nc.rateLimiter.NumRequeues(claim.UID)
 	delay := nc.rateLimiter.When(claim.UID)
 	klog.V(5).Infof("will try to become owner of PVC %s/%s in %s, attempt #%d", claim.Namespace, claim.Name, delay, attempts)
