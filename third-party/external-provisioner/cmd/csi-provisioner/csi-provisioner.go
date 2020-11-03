@@ -221,6 +221,9 @@ func main() {
 	}
 	var nodeLister v1.NodeLister
 	if ctrl.SupportsTopology(pluginCapabilities) {
+		// TODO (?): when deployed on each node with --strict-topology=true, then the topology
+		// code only needs the static information about the local node. We can avoid the overhead
+		// of watching the actual objects by providing just that information.
 		csiNodeLister = factory.Storage().V1().CSINodes().Lister()
 		nodeLister = factory.Core().V1().Nodes().Lister()
 	}
