@@ -87,6 +87,8 @@ See the [storage capacity section](#capacity-support) below for details.
 #### Other recognized arguments
 * `--feature-gates <gates>`: A set of comma separated `<feature-name>=<true|false>` pairs that describe feature gates for alpha/experimental features. See [list of features](#feature-status) or `--help` output for list of recognized features. Example: `--feature-gates Topology=true` to enable Topology feature that's disabled by default.
 
+* `--node-deployment`: Enables deploying the external-provisioner together with a CSI driver on nodes to manage node-local volumes.
+
 * `--strict-topology`: This controls what topology information is passed to `CreateVolumeRequest.AccessibilityRequirements` in case of delayed binding. See [the table below](#topology-support) for an explanation how this option changes the result. This option has no effect if either `Topology` feature is disabled or `Immediate` volume binding mode is used.
 
 * `--no-immediate-topology`: This controls what topology information is passed to `CreateVolumeRequest.AccessibilityRequirements` in case of immediate binding. See [the table below](#topology-support) for an explanation how this option changes the result. This option has no effect if either `Topology` feature is disabled or `WaitForFirstConsumer` (= delayed) volume binding mode is used. It should not be used if the CSI driver might create volumes in a topology segment that is not accessible in the cluster. Such a driver should use the topology information to create new volumes where they can be accessed.
@@ -260,6 +262,58 @@ Details of error handling of individual CSI calls:
 * `ControllerDeleteVolume`: This is similar to `ControllerCreateVolume`, The external-provisioner will retry calling `ControllerDeleteVolume` with exponential backoff after timeout until it gets either successful response or a final error that the volume cannot be deleted.
 * `Probe`: The external-provisioner retries calling Probe until the driver reports it's ready. It retries also when it receives timeout from `Probe` call. The external-provisioner has no limit of retries. It is expected that ReadinessProbe on the driver container will catch case when the driver takes too long time to get ready.
 * `GetPluginInfo`, `GetPluginCapabilitiesRequest`, `ControllerGetCapabilities`: The external-provisioner expects that these calls are quick and does not retry them on any error, including timeout. Instead, it assumes that the driver is faulty and exits. Note that Kubernetes will likely start a new provisioner container and it will start with `Probe` call.
+
+### Deployment on each node
+
+Normally, external-provisioner is deployed once in a cluster and
+communicates with a control instance of the CSI driver which then
+provisions volumes via some kind of storage backend API. CSI drivers
+which manage local storage on a node don't have such an API that a
+central controller could use.
+
+To support this case, external-provisioner can be deployed alongside
+each CSI driver on different nodes. The CSI driver deployment must:
+- support topology, usually with one topology key
+  ("csi.example.org/node") and the Kubernetes node name as value
+- use a service account that has the same RBAC rules as for a normal
+  deployment
+- invoke external-provisioner with `--node-deployment`
+- set the `NODE_NAME` environment variable to the name of the Kubernetes node
+- implement `GetCapacity`
+
+Usage of `--strict-topology` and `--no-immediate-topology` is
+recommended because it makes the `CreateVolume` invocations simpler.
+
+Volume provisioning with late binding works as before, except that
+each external-provisioner instance checks the "selected node"
+annotation and only creates volumes if that node is the one it runs
+on. It also only deletes volumes on its own node.
+
+Immediate binding is also supported, but not recommended. It is
+implemented by letting the external-provisioner instances assign a PVC
+to one of them: when they see a new PVC with immediate binding, they
+all attempt to set the "selected node" annotation with their own node
+name as value. Only one update request can succeed, all others get a
+"conflict" error and then know that some other instance was faster. To
+avoid the thundering herd problem, each instance waits for a random,
+exponentially increasing delay before issuing an update request.  In
+practice, the result is that volumes get spread randomly across the
+cluster.
+
+When `CreateVolume` call fails with `ResourcesExhausted`, the normal
+recovery mechanism is used, i.e. the external-provisioner instance
+removes the "selected node" annotation and the process repeats. But
+this triggers events for the PVC and delays volume creation, in
+particular when storage is exhausted on most nodes. Therefore
+external-provisioner checks with `GetCapacity` *before* attempting to
+own a PVC whether the currently available capacity is sufficient for
+the volume. When it isn't, the PVC is ignored and some other instance
+can own it.
+
+Beware that if *no* node has sufficient storage available, then also
+no `CreateVolume` call is attempted and thus no events are generated
+for the PVC, i.e. some other means of tracking remaining storage
+capacity must be used to detect when the cluster runs out of storage.
 
 ## Community, discussion, contribution, and support
 
