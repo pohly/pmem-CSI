@@ -68,6 +68,10 @@ EOF
     packages+=" --disableexcludes=kubernetes"
 fi
 
+# Also install and activate firewalld, because that is something that
+# may be active and we want to test with it.
+packages+=" firewalld"
+
 # Sometimes we hit a bad mirror and get "Failed to synchronize cache for repo ...".
 # https://unix.stackexchange.com/questions/487635/fedora-29-failed-to-synchronize-cache-for-repo-fedora-modular
 # suggests to try again after a `dnf update --refresh`, so that's what we do here for
@@ -85,6 +89,32 @@ while ! dnf install -y $packages; do
         dnf update -q -y --refresh || true
     fi
 done
+
+# Activate firewalld. Port numbers from https://medium.com/platformer-blog/kubernetes-on-centos-7-with-firewalld-e7b53c1316af
+systemctl unmask firewalld
+systemctl start firewalld
+systemctl enable firewalld
+case "$HOSTNAME" in
+    *master*)
+        firewall-cmd --permanent --add-port=6443/tcp
+        firewall-cmd --permanent --add-port=2379-2380/tcp
+        firewall-cmd --permanent --add-port=10250/tcp
+        firewall-cmd --permanent --add-port=10251/tcp
+        firewall-cmd --permanent --add-port=10252/tcp
+        firewall-cmd --permanent --add-port=10255/tcp
+        firewall-cmd --permanent --add-port=8472/udp
+        firewall-cmd --add-masquerade --permanent
+        ;;
+    *)
+        firewall-cmd --permanent --add-port=10250/tcp
+        firewall-cmd --permanent --add-port=10255/tcp
+        firewall-cmd --permanent --add-port=8472/udp
+        firewall-cmd --permanent --add-port=30000-32767/tcp
+        firewall-cmd --add-masquerade --permanent
+esac
+
+# 6783 added for weavenet.
+firewall-cmd --permanent --add-port=6783/tcp
 
 if $INIT_KUBERNETES; then
     # Upstream kubelet looks in /opt/cni/bin, actual files are in
