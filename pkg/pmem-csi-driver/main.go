@@ -35,11 +35,11 @@ func init() {
 	flag.StringVar(&config.Endpoint, "endpoint", "unix:///tmp/pmem-csi.sock", "PMEM CSI endpoint")
 	flag.StringVar(&config.RegistryEndpoint, "registryEndpoint", "tcp://pmem-csi-controller:10000", "endpoint for internal registry server (controller listens, node connects)")
 	flag.Var(&config.Mode, "mode", "driver run mode: controller or node")
-	flag.StringVar(&config.CAFile, "caFile", "", "Root CA certificate file to use for verifying connections")
-	flag.StringVar(&config.CertFile, "certFile", "", "SSL certificate file to use for authenticating client connections(RegistryServer/NodeControllerServer)")
-	flag.StringVar(&config.KeyFile, "keyFile", "", "Private key file associated to certificate")
-	flag.StringVar(&config.ClientCertFile, "clientCertFile", "", "Client SSL certificate file to use for authenticating peer connections, defaults to 'certFile'")
-	flag.StringVar(&config.ClientKeyFile, "clientKeyFile", "", "Client private key associated to client certificate, defaults to 'keyFile'")
+	flag.StringVar(&config.CAFile, "caFile", "ca.pem", "Root CA certificate file to use for verifying connections")
+	flag.StringVar(&config.CertFile, "certFile", "pmem-registry.pem", "SSL certificate file to use for authenticating client connections")
+	flag.StringVar(&config.KeyFile, "keyFile", "pmem-registry-key.pem", "Private key file associated to certificate")
+	flag.StringVar(&config.ClientCertFile, "clientCertFile", "", "Client SSL certificate file to use for authenticating peer connections (optional, the files specified with -certFile and -keyFile are used if unset)")
+	flag.StringVar(&config.ClientKeyFile, "clientKeyFile", "", "Client private key associated with client certificate (optional, the files specified with -certFile and -keyFile are used if unset)")
 
 	/* metrics options */
 	flag.StringVar(&config.metricsListen, "metricsListen", "", "listen address (like :8001) for prometheus metrics endpoint, disabled by default")
