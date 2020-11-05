@@ -6,3 +6,5 @@ grpc-go,https://github.com/grpc/grpc-go,
 kubernetes,https://github.com/kubernetes/kubernetes,9641
 kubernetes-sigs/controller-runtime,https://github.com/kubernetes-sigs/controller-runtime,
 operator-sdk,https://github.com/operator-framework/operator-sdk,
+prometheus client_model,https://github.com/prometheus/client_model,
+prometheus_common,https://github.com/prometheus/common,

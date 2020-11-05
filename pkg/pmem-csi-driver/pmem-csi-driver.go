@@ -55,7 +55,7 @@ type DriverMode string
 
 func (mode *DriverMode) Set(value string) error {
 	switch value {
-	case string(Controller), string(Node), string(Both):
+	case string(Controller), string(Node), string(Both), string(Webhooks):
 		*mode = DriverMode(value)
 	default:
 		// The flag package will add the value to the final output, no need to do it here.
@@ -77,6 +77,8 @@ const (
 	Node DriverMode = "node"
 	// Node driver with support for provisioning.
 	Both DriverMode = "both"
+	// Just the webhooks, using metrics instead of gRPC over TCP.
+	Webhooks DriverMode = "webhooks"
 )
 
 var (
@@ -194,16 +196,18 @@ func GetCSIDriver(cfg Config) (*csiDriver, error) {
 		}
 	}
 
-	/* if no client certificate details provided use same server certificate to connect to peer server */
-	if cfg.ClientCertFile == "" {
-		cfg.ClientCertFile = cfg.CertFile
-		cfg.ClientKeyFile = cfg.KeyFile
-	}
+	if cfg.Mode != Webhooks {
+		/* if no client certificate details provided use same server certificate to connect to peer server */
+		if cfg.ClientCertFile == "" {
+			cfg.ClientCertFile = cfg.CertFile
+			cfg.ClientKeyFile = cfg.KeyFile
+		}
 
-	if cfg.ClientCertFile != "" && cfg.ClientKeyFile != "" {
-		clientConfig, err = pmemgrpc.LoadClientTLS(cfg.CAFile, cfg.ClientCertFile, cfg.ClientKeyFile, peerName)
-		if err != nil {
-			return nil, err
+		if cfg.ClientCertFile != "" && cfg.ClientKeyFile != "" {
+			clientConfig, err = pmemgrpc.LoadClientTLS(cfg.CAFile, cfg.ClientCertFile, cfg.ClientKeyFile, peerName)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -268,6 +272,20 @@ func (csid *csiDriver) Run() error {
 			if _, err := csid.startScheduler(ctx, cancel, c); err != nil {
 				return err
 			}
+		}
+	case Webhooks:
+		// Just the scheduler extender!
+		if csid.cfg.schedulerListen == "" {
+			return errors.New("webhooks mode needs a scheduler listen address")
+		}
+		factory := informers.NewSharedInformerFactoryWithOptions(csid.cfg.client, resyncPeriod,
+			informers.WithNamespace("default" /* TODO */),
+		)
+		podLister := factory.Core().V1().Pods().Lister()
+		c := scheduler.CapacityViaMetrics("default" /* TODO */, csid.cfg.DriverName, podLister)
+		factory.Start(ctx.Done())
+		if _, err := csid.startScheduler(ctx, cancel, c); err != nil {
+			return err
 		}
 	case Node, Both:
 		dm, err := pmdmanager.New(csid.cfg.DeviceManager, csid.cfg.PmemPercentage)

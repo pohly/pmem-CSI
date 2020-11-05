@@ -1,0 +1,81 @@
+bases:
+- ../kubernetes-base-lvm-coverage
+
+resources:
+- webhooks-rbac.yaml
+
+patchesJSON6902:
+- target:
+    group: apps
+    version: v1
+    kind: StatefulSet
+    name: pmem-csi-controller
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -mode=webhooks
+    - op: remove
+      path: /spec/template/spec/containers/1
+- target:
+    group: apps
+    version: v1
+    kind: DaemonSet
+    name: pmem-csi-node
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -mode=both
+
+patchesStrategicMerge:
+- |-
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: pmem-csi-controller
+  spec:
+    template:
+      spec:
+        # Simplify RBAC rules, add access to pods.
+        serviceAccountName: pmem-csi-webhooks
+# ... and instead add external-provisioner to each node.
+- |-
+  apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    name: pmem-csi-node
+  spec:
+    template:
+      spec:
+        serviceAccountName: pmem-csi-controller
+        containers:
+        - args:
+          - --csi-address=/csi/csi.sock
+          - --feature-gates=Topology=true
+          - --strict-topology=true
+          - --topology-hints=false
+          - --enable-node-check
+          - --timeout=5m
+          - --metrics-address=:10011
+          - -v=5
+          - --kube-api-qps=500
+          - --kube-api-burst=1000
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          # Image built from https://github.com/kubernetes-csi/external-provisioner/pull/524.
+          # If that doesn't get into the next release, plan B is to import the code
+          # into the PMEM-CSI driver itself (no extra image that we need to release!).
+          image: pohly/csi-provisioner:canary
+          imagePullPolicy: Always
+          name: external-provisioner
+          ports:
+          - containerPort: 10011
+            name: metrics
+          securityContext:
+            readOnlyRootFilesystem: true
+          volumeMounts:
+          - mountPath: /csi
+            name: socket-dir

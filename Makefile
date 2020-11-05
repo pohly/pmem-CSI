@@ -178,6 +178,10 @@ KUSTOMIZE += $(foreach version,$(KUSTOMIZE_KUBERNETES_VERSIONS),$(subst X.XX,$(v
 KUSTOMIZE += $(subst kubernetes-base,kubernetes-1.19-alpha,$(subst X.XX,1.19-alpha,$(KUSTOMIZE_KUBERNETES_OUTPUT)))
 
 KUSTOMIZE += deploy/common/pmem-storageclass-default.yaml=deploy/kustomize/storageclass
+
+# Special case for distributed provisioning with https://github.com/kubernetes-csi/external-provisioner/issues/487
+KUSTOMIZE += $(foreach version,$(KUSTOMIZE_KUBERNETES_VERSIONS),$(subst X.XX,$(version),deploy/kubernetes-X.XX-distributed/pmem-csi-lvm-testing.yaml=deploy/kustomize/kubernetes-distributed-lvm-coverage))
+
 KUSTOMIZE += deploy/common/pmem-storageclass-ext4.yaml=deploy/kustomize/storageclass-ext4
 KUSTOMIZE += deploy/common/pmem-storageclass-xfs.yaml=deploy/kustomize/storageclass-xfs
 KUSTOMIZE += deploy/common/pmem-storageclass-cache.yaml=deploy/kustomize/storageclass-cache
@@ -204,7 +208,7 @@ $(KUSTOMIZE_OUTPUT): _work/kustomize $(KUSTOMIZE_INPUT)
 	mkdir -p ${@D}
 	$(call KUSTOMIZE_INVOCATION,$<,$@) >$@
 	if echo "$@" | grep '/pmem-csi-' | grep -qv '\-operator'; then \
-		dir=$$(echo "$@" | tr - / | sed -e 's;kubernetes/;kubernetes-;' -e 's;/alpha/;-alpha/;' -e 's/.yaml//' -e 's;/pmem/csi/;/;') && \
+		dir=$$(echo "$@" | tr - / | sed -e 's;kubernetes/;kubernetes-;' -e 's;/alpha/;-alpha/;'  -e 's;/distributed/;-distributed/;' -e 's/.yaml//' -e 's;/pmem/csi/;/;') && \
 		mkdir -p $$dir && \
 		cp $@ $$dir/pmem-csi.yaml && \
 		echo 'resources: [ pmem-csi.yaml ]' > $$dir/kustomization.yaml; \

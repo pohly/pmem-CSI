@@ -67,7 +67,7 @@ func Main() int {
 	klog.V(3).Info("Version: ", version)
 
 	if config.schedulerListen != "" {
-		if config.Mode != Controller {
+		if config.Mode != Controller && config.Mode != Webhooks {
 			pmemcommon.ExitError("scheduler listening", errors.New("only supported in the controller"))
 			return 1
 		}
