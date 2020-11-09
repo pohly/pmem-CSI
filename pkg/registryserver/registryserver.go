@@ -69,11 +69,15 @@ var (
 	)
 )
 
-func init() {
-	prometheus.MustRegister(pmemNodes)
-}
-
 func New(tlsConfig *tls.Config, driverName string) *RegistryServer {
+	// We don't want to register this by default because it the registry server might not be active,
+	// but we also cannot register more than once...
+	if err := prometheus.Register(pmemNodes); err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			panic(err)
+		}
+	}
+
 	return &RegistryServer{
 		rpcMutex:        keymutex.NewHashed(-1),
 		clientTLSConfig: tlsConfig,
