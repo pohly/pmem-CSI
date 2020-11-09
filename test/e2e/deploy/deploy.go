@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/common/expfmt"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -124,79 +123,6 @@ func WaitForPMEMDriver(c *Cluster, name string, d *Deployment) (metricsURL strin
 	var lastError error
 	var version string
 	check := func() error {
-		// Do not linger too long here, we rather want to
-		// abort and print the error instead of getting stuck.
-		const timeout = time.Second
-		deadline, cancel := context.WithTimeout(deadline, timeout)
-		defer cancel()
-
-		// The controller service must be defined.
-		port, err := c.GetServicePort(deadline, name+"-metrics", d.Namespace)
-		if err != nil {
-			return fmt.Errorf("get port for service %s-metrics in namespace %s: %v", name, d.Namespace, err)
-		}
-
-		// We can connect to it and get metrics data.
-		scheme := "http"
-		if d.Version == "0.7" {
-			scheme = "https"
-		}
-		metricsURL = fmt.Sprintf("%s://%s:%d/metrics", scheme, c.NodeIP(0), port)
-		client := &http.Client{
-			Transport: &tr,
-			Timeout:   timeout,
-		}
-		resp, err := client.Get(metricsURL)
-		if err != nil {
-			return fmt.Errorf("get controller metrics: %v", err)
-		}
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("HTTP GET %s failed: %d", metricsURL, resp.StatusCode)
-		}
-
-		// Parse and check number of connected nodes. Dump the
-		// version number while we are at it.
-		parser := expfmt.TextParser{}
-		metrics, err := parser.TextToMetricFamilies(resp.Body)
-		if err != nil {
-			return fmt.Errorf("parse metrics response: %v", err)
-		}
-		buildInfo, ok := metrics["build_info"]
-		if !ok {
-			return fmt.Errorf("expected build_info not found in metrics: %v", metrics)
-		}
-		if len(buildInfo.Metric) != 1 {
-			return fmt.Errorf("expected build_info to have one metric, got: %v", buildInfo.Metric)
-		}
-		buildMetric := buildInfo.Metric[0]
-		if len(buildMetric.Label) != 1 {
-			return fmt.Errorf("expected build_info to have one label, got: %v", buildMetric.Label)
-		}
-		label := buildMetric.Label[0]
-		if *label.Name != "version" {
-			return fmt.Errorf("expected build_info to contain a version label, got: %s", *label.Name)
-		}
-		version = *label.Value
-
-		pmemNodes, ok := metrics["pmem_nodes"]
-		if !ok {
-			return fmt.Errorf("expected pmem_nodes not found in metrics: %v", metrics)
-		}
-
-		if len(pmemNodes.Metric) != 1 {
-			return fmt.Errorf("expected pmem_nodes to have one metric, got: %v", pmemNodes.Metric)
-		}
-		nodesMetric := pmemNodes.Metric[0]
-		actualNodes := int(*nodesMetric.Gauge.Value)
-		if actualNodes != c.NumNodes()-1 {
-			return fmt.Errorf("only %d of %d nodes have registered", actualNodes, c.NumNodes()-1)
-		}
-
-		// Done for normal deployments.
-		if !d.Testing {
-			return nil
-		}
-
 		// For testing deployments, also ensure that the CSI endpoints can be reached.
 		nodeAddress, controllerAddress, err := LookupCSIAddresses(c, d.Namespace)
 		if err != nil {
@@ -228,9 +154,7 @@ func WaitForPMEMDriver(c *Cluster, name string, d *Deployment) (metricsURL strin
 		if newError == nil {
 			framework.Logf("Done with waiting, PMEM-CSI driver %s is ready.", version)
 		}
-		// Only overwrite the last error if we haven't reached the deadline yet, because
-		// in that case the new error is probably just "context deadline exceeded".
-		if lastError == nil || deadline.Err() == nil {
+		if lastError == nil {
 			lastError = newError
 		}
 		return lastError
@@ -889,8 +813,13 @@ func EnsureDeploymentNow(f *framework.Framework, deployment *Deployment) {
 			}
 			cmd := exec.Command("test/setup-deployment.sh")
 			cmd.Dir = root
+			flavor := ""
+			if deployment.Testing && deployment.Mode == "lvm" {
+				flavor = "-distributed"
+			}
 			env = append(env,
 				"REPO_ROOT="+root,
+				"TEST_KUBERNETES_FLAVOR="+flavor,
 				"TEST_DEPLOYMENT_QUIET=quiet",
 				"TEST_DEPLOYMENTMODE="+deployment.DeploymentMode(),
 				"TEST_DEVICEMODE="+string(deployment.Mode))
@@ -973,13 +902,8 @@ func LookupCSIAddresses(c *Cluster, namespace string) (nodeAddress, controllerAd
 	// node service will fail.
 	nodeAddress = c.NodeServiceAddress(1, SocatPort)
 
-	// The cluster controller service can be reached via
-	// any node, what matters is the service port.
-	port, err := c.GetServicePort(context.Background(), "pmem-csi-controller-testing", namespace)
-	if err != nil {
-		return "", "", fmt.Errorf("get PMEM-CSI controller service port: %v", err)
-	}
-	controllerAddress = c.NodeServiceAddress(0, port)
+	// Also use that same node as controller.
+	controllerAddress = nodeAddress
 
 	return
 }
