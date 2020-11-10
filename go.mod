@@ -11,11 +11,13 @@ require (
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/go-logr/logr v0.2.1-0.20200730175230-ee2de8da5be6
 	github.com/go-logr/zapr v0.2.0 // indirect
+	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.4.2
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
-	github.com/kubernetes-csi/csi-lib-utils v0.8.0
-	github.com/kubernetes-csi/csi-test/v3 v3.1.0
+	github.com/kubernetes-csi/csi-lib-utils v0.8.1
+	github.com/kubernetes-csi/csi-test/v3 v3.1.1
+	github.com/kubernetes-csi/external-provisioner v1.6.1
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/operator-framework/operator-sdk v0.8.2
@@ -31,17 +33,19 @@ require (
 	google.golang.org/grpc v1.29.1
 	gopkg.in/freddierice/go-losetup.v1 v1.0.0-20170407175016-fc9adea44124
 	gopkg.in/yaml.v2 v2.3.0
-	k8s.io/api v0.19.0
+	k8s.io/api v0.19.3
 	k8s.io/apiextensions-apiserver v0.19.0
-	k8s.io/apimachinery v0.19.1-rc.0
+	k8s.io/apimachinery v0.19.3
 	k8s.io/client-go v1.19.0
 	k8s.io/component-base v0.19.0
-	k8s.io/klog/v2 v2.2.0
+	k8s.io/csi-translation-lib v0.19.3
+	k8s.io/klog/v2 v2.3.0
 	k8s.io/kube-scheduler v0.19.0
 	k8s.io/kubectl v0.19.0
 	k8s.io/kubernetes v1.19.0
 	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 	sigs.k8s.io/controller-runtime v0.6.2
+	sigs.k8s.io/sig-storage-lib-external-provisioner/v6 v6.1.0
 )
 
 replace (
@@ -75,3 +79,6 @@ replace (
 // - https://github.com/kubernetes/kubernetes/pull/94647
 // - https://github.com/kubernetes/kubernetes/pull/93930
 replace k8s.io/kubernetes => github.com/pohly/kubernetes v1.10.0-alpha.3.0.20200909111025-b4fda25e0e77
+
+// Temporary fork with distributed provisioning.
+replace github.com/kubernetes-csi/external-provisioner => ./third-party/external-provisioner

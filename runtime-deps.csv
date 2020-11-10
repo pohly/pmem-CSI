@@ -8,3 +8,4 @@ kubernetes-sigs/controller-runtime,https://github.com/kubernetes-sigs/controller
 operator-sdk,https://github.com/operator-framework/operator-sdk,
 prometheus client_model,https://github.com/prometheus/client_model,
 prometheus_common,https://github.com/prometheus/common,
+sigs.k8s.io/sig-storage-lib-external-provisioner

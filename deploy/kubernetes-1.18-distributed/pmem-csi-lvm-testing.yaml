@@ -476,6 +476,11 @@ spec:
           value: /tmp/termination-log
         - name: GODEBUG
           value: x509ignoreCN=0
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
         image: intel/pmem-csi-driver-test:canary
         imagePullPolicy: IfNotPresent
         name: pmem-driver
@@ -524,34 +529,6 @@ spec:
           name: socket-dir
         - mountPath: /registration
           name: registration-dir
-      - args:
-        - --csi-address=/csi/csi.sock
-        - --feature-gates=Topology=true
-        - --strict-topology=true
-        - --topology-hints=false
-        - --enable-node-check
-        - --timeout=5m
-        - --metrics-address=:10011
-        - -v=5
-        - --kube-api-qps=500
-        - --kube-api-burst=1000
-        env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
-        image: pohly/csi-provisioner:canary
-        imagePullPolicy: Always
-        name: external-provisioner
-        ports:
-        - containerPort: 10011
-          name: metrics
-        securityContext:
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /csi
-          name: socket-dir
       nodeSelector:
         storage: pmem
       serviceAccountName: pmem-csi-controller

@@ -12,16 +12,19 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	grpcserver "github.com/intel/pmem-csi/pkg/grpc-server"
+	"github.com/intel/pmem-csi/pkg/k8sutil"
 	pmdmanager "github.com/intel/pmem-csi/pkg/pmem-device-manager"
 	pmemgrpc "github.com/intel/pmem-csi/pkg/pmem-grpc"
 	registry "github.com/intel/pmem-csi/pkg/pmem-registry"
@@ -29,6 +32,13 @@ import (
 	"github.com/intel/pmem-csi/pkg/registryserver"
 	"github.com/intel/pmem-csi/pkg/scheduler"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
+
+	// For external-provisioner.
+	ctrl "github.com/kubernetes-csi/external-provisioner/pkg/controller"
+	storagelistersv1 "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/client-go/util/workqueue"
+	csitrans "k8s.io/csi-translation-lib"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/v6/controller"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -138,7 +148,6 @@ type Config struct {
 
 	// parameters for Kubernetes scheduler extender
 	schedulerListen string
-	client          kubernetes.Interface
 
 	// parameters for Prometheus metrics
 	metricsListen string
@@ -253,6 +262,16 @@ func (csid *csiDriver) Run() error {
 	cmm := metrics.NewCSIMetricsManagerForPlugin(csid.cfg.DriverName)
 	csid.gatherers = append(csid.gatherers, cmm.GetRegistry())
 
+	var client kubernetes.Interface
+	if config.schedulerListen != "" ||
+		csid.cfg.Mode == Both {
+		c, err := k8sutil.NewClient() // TODO: QPS + burst settings
+		if err != nil {
+			return fmt.Errorf("connect to apiserver: %v", err)
+		}
+		client = c
+	}
+
 	switch csid.cfg.Mode {
 	case Controller:
 		rs := registryserver.New(csid.clientTLSConfig, csid.cfg.DriverName)
@@ -269,7 +288,7 @@ func (csid *csiDriver) Run() error {
 		// Also run scheduler extender?
 		if csid.cfg.schedulerListen != "" {
 			c := scheduler.CapacityViaRegistry(rs)
-			if _, err := csid.startScheduler(ctx, cancel, c); err != nil {
+			if _, err := csid.startScheduler(ctx, cancel, client, c); err != nil {
 				return err
 			}
 		}
@@ -278,13 +297,13 @@ func (csid *csiDriver) Run() error {
 		if csid.cfg.schedulerListen == "" {
 			return errors.New("webhooks mode needs a scheduler listen address")
 		}
-		factory := informers.NewSharedInformerFactoryWithOptions(csid.cfg.client, resyncPeriod,
+		factory := informers.NewSharedInformerFactoryWithOptions(client, resyncPeriod,
 			informers.WithNamespace("default" /* TODO */),
 		)
 		podLister := factory.Core().V1().Pods().Lister()
 		c := scheduler.CapacityViaMetrics("default" /* TODO */, csid.cfg.DriverName, podLister)
 		factory.Start(ctx.Done())
-		if _, err := csid.startScheduler(ctx, cancel, c); err != nil {
+		if _, err := csid.startScheduler(ctx, cancel, client, c); err != nil {
 			return err
 		}
 	case Node, Both:
@@ -321,6 +340,9 @@ func (csid *csiDriver) Run() error {
 		services := []grpcserver.Service{ids, ns}
 		if csid.cfg.TestEndpoint || csid.cfg.Mode == Both {
 			services = append(services, cs)
+
+			// Run external-provisioner *inside* the same process.
+			go csid.runExternalProvisioner(ctx, cancel, client)
 		}
 		if err := s.Start(csid.cfg.Endpoint, nil, cmm, services...); err != nil {
 			return err
@@ -389,14 +411,14 @@ func (csid *csiDriver) registerNodeController() error {
 // logs errors and cancels the context when it runs into a problem,
 // either during the startup phase (blocking) or later at runtime (in
 // a go routine).
-func (csid *csiDriver) startScheduler(ctx context.Context, cancel func(), c scheduler.Capacity) (string, error) {
-	factory := informers.NewSharedInformerFactory(csid.cfg.client, resyncPeriod)
+func (csid *csiDriver) startScheduler(ctx context.Context, cancel func(), client kubernetes.Interface, c scheduler.Capacity) (string, error) {
+	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
 	pvcLister := factory.Core().V1().PersistentVolumeClaims().Lister()
 	scLister := factory.Storage().V1().StorageClasses().Lister()
 	sched, err := scheduler.NewScheduler(
 		csid.cfg.DriverName,
 		c,
-		csid.cfg.client,
+		client,
 		pvcLister,
 		scLister,
 	)
@@ -476,6 +498,155 @@ func (csid *csiDriver) startHTTPSServer(ctx context.Context, cancel func(), list
 	}()
 
 	return tcpListener.Addr().String(), nil
+}
+
+// runExternalProvisioner sets up and executes the external-provisioner volume provisioning
+// in the same process as the rest of PMEM-CSI. Because the code expects it and we get logging
+// that way, we do the communication through the Unix domain socket.
+//
+// Basically this function is a copy of main() in csi-provisioner.go, with all unnecessary
+// code removed.
+//
+// Must be executed in a goroutine. It will return when the context is done and
+// in case of an error, call cancel which then marks the context as done for the rest
+// of PMEM-CSI.
+func (csid *csiDriver) runExternalProvisioner(ctx context.Context, cancel func(), clientset kubernetes.Interface) {
+	defer cancel()
+
+	// TODO: make these configurable
+	workerThreads := 100
+	operationTimeout := time.Hour
+	retryIntervalStart := time.Second
+	retryIntervalMax := 5 * time.Minute
+
+	node := os.Getenv("NODE_NAME")
+	if node == "" {
+		klog.Error("The NODE_NAME environment variable must be set when using the external-provisioner inside PMEM-CSI.")
+		return
+	}
+
+	metricsManager := metrics.NewCSIMetricsManager(csid.cfg.DriverName)
+
+	grpcClient, err := ctrl.Connect(csid.cfg.Endpoint, metricsManager)
+	if err != nil {
+		klog.Error(err.Error())
+		return
+	}
+
+	err = ctrl.Probe(grpcClient, operationTimeout)
+	if err != nil {
+		klog.Error(err.Error())
+		return
+	}
+
+	provisionerName := csid.cfg.DriverName
+	pluginCapabilities, controllerCapabilities, err := ctrl.GetDriverCapabilities(grpcClient, operationTimeout)
+	if err != nil {
+		klog.Errorf("Error getting CSI driver capabilities: %s", err)
+		return
+	}
+
+	// Generate a unique ID for this provisioner
+	timeStamp := time.Now().UnixNano() / int64(time.Millisecond)
+	identity := strconv.FormatInt(timeStamp, 10) + "-" + strconv.Itoa(rand.Intn(10000)) + "-" + provisionerName
+	identity = identity + "-" + node
+
+	factory := informers.NewSharedInformerFactory(clientset, ctrl.ResyncPeriodOfCsiNodeInformer)
+	var factoryForNamespace informers.SharedInformerFactory // usually nil, only used for CSIStorageCapacity
+
+	// -------------------------------
+	// Listers
+	// Create informer to prevent hit the API server for all resource request
+	scLister := factory.Storage().V1().StorageClasses().Lister()
+	claimLister := factory.Core().V1().PersistentVolumeClaims().Lister()
+
+	var vaLister storagelistersv1.VolumeAttachmentLister
+	// TODO (?): when deployed on each node with --strict-topology=true, then the topology
+	// code only needs the static information about the local node. We can avoid the overhead
+	// of watching the actual objects by providing just that information.
+	csiNodeLister := factory.Storage().V1().CSINodes().Lister()
+	nodeLister := factory.Core().V1().Nodes().Lister()
+
+	// -------------------------------
+	// PersistentVolumeClaims informer
+	rateLimiter := workqueue.NewItemExponentialFailureRateLimiter(retryIntervalStart, retryIntervalMax)
+	claimInformer := factory.Core().V1().PersistentVolumeClaims().Informer()
+
+	// Setup options
+	provisionerOptions := []func(*controller.ProvisionController) error{
+		controller.LeaderElection(false), // Always disable leader election in provisioner lib. Leader election should be done here in the CSI provisioner level instead.
+		controller.FailedProvisionThreshold(0),
+		controller.FailedDeleteThreshold(0),
+		controller.RateLimiter(rateLimiter),
+		controller.Threadiness(workerThreads),
+		controller.CreateProvisionedPVLimiter(workqueue.DefaultControllerRateLimiter()),
+		controller.ClaimsInformer(claimInformer),
+	}
+
+	translator := csitrans.New()
+
+	// Create the provisioner: it implements the Provisioner interface expected by
+	// the controller
+	nodeDeployment := &ctrl.NodeDeployment{
+		NodeName:      node,
+		ClaimInformer: factory.Core().V1().PersistentVolumeClaims(),
+	}
+	nodeInfo, err := ctrl.GetNodeInfo(grpcClient, operationTimeout)
+	if err != nil {
+		klog.Errorf("Failed to get node info from CSI driver: %v", err)
+		return
+	}
+	nodeDeployment.NodeInfo = *nodeInfo
+
+	csiProvisioner := ctrl.NewCSIProvisioner(
+		clientset,
+		operationTimeout,
+		identity,
+		"pvc",
+		int(-1),
+		grpcClient,
+		nil,
+		provisionerName,
+		pluginCapabilities,
+		controllerCapabilities,
+		"",
+		true,  // strict topology
+		false, // immediate topology
+		translator,
+		scLister,
+		csiNodeLister,
+		nodeLister,
+		claimLister,
+		vaLister,
+		false,
+		"ext4",
+		nodeDeployment,
+	)
+
+	provisionController := controller.NewProvisionController(
+		clientset,
+		provisionerName,
+		csiProvisioner,
+		"v1.17.0",
+		provisionerOptions...,
+	)
+
+	// TODO: optionally generate CSIStorageCapacity
+
+	factory.Start(ctx.Done())
+	if factoryForNamespace != nil {
+		// Starting is enough, the capacity controller will
+		// wait for sync.
+		factoryForNamespace.Start(ctx.Done())
+	}
+	cacheSyncResult := factory.WaitForCacheSync(ctx.Done())
+	for _, v := range cacheSyncResult {
+		if !v {
+			klog.Errorf("Failed to sync Informers!")
+			return
+		}
+	}
+	provisionController.Run(ctx)
 }
 
 // waitAndWatchConnection Keeps watching for connection changes, and whenever the

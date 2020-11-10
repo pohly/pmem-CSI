@@ -15,7 +15,6 @@ import (
 	"k8s.io/klog/v2"
 
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
-	"github.com/intel/pmem-csi/pkg/k8sutil"
 	pmemcommon "github.com/intel/pmem-csi/pkg/pmem-common"
 )
 
@@ -71,12 +70,6 @@ func Main() int {
 			pmemcommon.ExitError("scheduler listening", errors.New("only supported in the controller"))
 			return 1
 		}
-		c, err := k8sutil.NewClient()
-		if err != nil {
-			pmemcommon.ExitError("scheduler setup", err)
-			return 1
-		}
-		config.client = c
 	}
 
 	config.Version = version
