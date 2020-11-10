@@ -1336,12 +1336,13 @@ func (p *csiProvisioner) checkCapacity(ctx context.Context, claim *v1.Persistent
 		return false, err
 	}
 
-	// In practice, we expect exactly one entry here. But we have
-	// to be prepared for more than one (=> check all, success if there
-	// is at least one) and none (=> check once without topology).
-	topologies := result.req.AccessibilityRequirements.Requisite
-	if len(topologies) == 0 {
-		topologies = []*csi.Topology{nil}
+	// In practice, we expect exactly one entry here once a node
+	// has been selected. But we have to be prepared for more than
+	// one (=> check all, success if there is at least one) and
+	// none (no node selected => check once without topology).
+	topologies := []*csi.Topology{nil}
+	if result.req.AccessibilityRequirements != nil && len(result.req.AccessibilityRequirements.Requisite) > 0 {
+		topologies = result.req.AccessibilityRequirements.Requisite
 	}
 	for _, topology := range topologies {
 		req := &csi.GetCapacityRequest{
