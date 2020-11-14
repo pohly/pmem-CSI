@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	"github.com/intel/pmem-csi/pkg/deployments"
 	operatordeployment "github.com/intel/pmem-csi/pkg/pmem-csi-operator/controller/deployment"
@@ -152,13 +153,13 @@ func DriverDeployment(client client.Client, k8sver version.Version, namespace st
 				// content of secrets, which aren't
 				// part of the reference objects.
 				switch actual.GetName() {
-				case deployment.GetHyphenedName() + "-registry-secrets":
+				case base.RegistrySecretName(&deployment):
 					diffs = append(diffs, compareSecrets(actual,
 						deployment.Spec.CACert,
 						deployment.Spec.RegistryPrivateKey,
 						deployment.Spec.RegistryCert)...)
 					continue
-				case deployment.GetHyphenedName() + "-node-secrets":
+				case base.NodeSecretName(&deployment):
 					diffs = append(diffs, compareSecrets(actual,
 						deployment.Spec.CACert,
 						deployment.Spec.NodeControllerPrivateKey,
@@ -221,8 +222,8 @@ func DriverDeployment(client client.Client, k8sver version.Version, namespace st
 	}
 	for _, expected := range append(expectedObjects,
 		// Content doesn't matter, we just want to be sure they exist.
-		createObject(gvk, deployment.GetHyphenedName()+"-registry-secrets", namespace),
-		createObject(gvk, deployment.GetHyphenedName()+"-node-secrets", namespace)) {
+		createObject(gvk, base.RegistrySecretName(&deployment), namespace),
+		createObject(gvk, base.NodeSecretName(&deployment), namespace)) {
 		if findObject(objects, expected) == nil {
 			diffs = append(diffs, fmt.Sprintf("expected object was not deployed: %v", prettyPrintObjectID(expected)))
 		}

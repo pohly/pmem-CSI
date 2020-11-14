@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	pmemcsiv1alpha1 "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	"github.com/intel/pmem-csi/pkg/k8sutil"
 	pmemcontroller "github.com/intel/pmem-csi/pkg/pmem-csi-operator/controller"
@@ -282,9 +283,9 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 		}
 	}
 
-	if deployment.Status.Phase == pmemcsiv1alpha1.DeploymentPhaseNew {
+	if deployment.Status.Phase == base.DeploymentPhaseNew {
 		/* New deployment */
-		r.evRecorder.Event(deployment, corev1.EventTypeNormal, pmemcsiv1alpha1.EventReasonNew, "Processing new driver deployment")
+		r.evRecorder.Event(deployment, corev1.EventTypeNormal, base.EventReasonNew, "Processing new driver deployment")
 	}
 
 	// Cache the deployment
@@ -311,16 +312,16 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 	d := &PmemCSIDriver{dep, r.namespace, r.k8sVersion}
 	if err := d.Reconcile(r); err != nil {
 		klog.Infof("Reconcile error: %v", err)
-		dep.Status.Phase = pmemcsiv1alpha1.DeploymentPhaseFailed
+		dep.Status.Phase = base.DeploymentPhaseFailed
 		dep.Status.Reason = err.Error()
-		r.evRecorder.Event(dep, corev1.EventTypeWarning, pmemcsiv1alpha1.EventReasonFailed, err.Error())
+		r.evRecorder.Event(dep, corev1.EventTypeWarning, base.EventReasonFailed, err.Error())
 
 		return reconcile.Result{Requeue: true, RequeueAfter: requeueDelayOnError}, err
 	}
 
-	dep.Status.Phase = pmemcsiv1alpha1.DeploymentPhaseRunning
+	dep.Status.Phase = base.DeploymentPhaseRunning
 	dep.Status.Reason = "All driver components are deployed successfully"
-	r.evRecorder.Event(dep, corev1.EventTypeNormal, pmemcsiv1alpha1.EventReasonRunning, "Driver deployment successful")
+	r.evRecorder.Event(dep, corev1.EventTypeNormal, base.EventReasonRunning, "Driver deployment successful")
 
 	return reconcile.Result{}, nil
 }
@@ -393,7 +394,7 @@ func (r *ReconcileDeployment) deleteDeployment(name string) {
 	delete(r.deployments, name)
 }
 
-func (r *ReconcileDeployment) cacheDeploymentStatus(name string, status pmemcsiv1alpha1.DeploymentStatus) {
+func (r *ReconcileDeployment) cacheDeploymentStatus(name string, status base.DeploymentStatus) {
 	r.deploymentsMutex.Lock()
 	defer r.deploymentsMutex.Unlock()
 	if d, ok := r.deployments[name]; ok {

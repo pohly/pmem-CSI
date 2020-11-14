@@ -30,6 +30,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/framework/skipper"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	pmemexec "github.com/intel/pmem-csi/pkg/exec"
 
@@ -530,7 +531,7 @@ type Deployment struct {
 	HasOLM bool
 
 	// Mode is the driver mode of the deployment.
-	Mode api.DeviceMode
+	Mode base.DeviceMode
 
 	// Namespace where the namespaced objects of the deployment
 	// were created.
@@ -930,17 +931,19 @@ func (d *Deployment) GetDriverDeployment() api.Deployment {
 			},
 		},
 		Spec: api.DeploymentSpec{
-			Labels: map[string]string{
-				deploymentLabel: d.Label(),
-			},
-			DeviceMode: d.Mode,
-			// As in setup-deployment.sh, only 50% of the available
-			// PMEM must be used for LVM, otherwise other tests cannot
-			// run after the LVM driver was deployed once.
-			PMEMPercentage: 50,
-			NodeSelector: map[string]string{
-				// Provided by NFD.
-				"feature.node.kubernetes.io/memory-nv.dax": "true",
+			DeploymentSpec: base.DeploymentSpec{
+				Labels: map[string]string{
+					deploymentLabel: d.Label(),
+				},
+				DeviceMode: d.Mode,
+				// As in setup-deployment.sh, only 50% of the available
+				// PMEM must be used for LVM, otherwise other tests cannot
+				// run after the LVM driver was deployed once.
+				PMEMPercentage: 50,
+				NodeSelector: map[string]string{
+					// Provided by NFD.
+					"feature.node.kubernetes.io/memory-nv.dax": "true",
+				},
 			},
 		},
 	}

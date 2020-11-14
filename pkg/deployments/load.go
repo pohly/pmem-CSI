@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/intel/pmem-csi/deploy"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	"github.com/intel/pmem-csi/pkg/version"
 
@@ -23,7 +24,7 @@ import (
 )
 
 // LoadObjects reads all objects stored in a pmem-csi.yaml reference file.
-func LoadObjects(kubernetes version.Version, deviceMode api.DeviceMode) ([]unstructured.Unstructured, error) {
+func LoadObjects(kubernetes version.Version, deviceMode base.DeviceMode) ([]unstructured.Unstructured, error) {
 	return loadObjects(kubernetes, deviceMode, nil, nil)
 }
 
@@ -32,7 +33,7 @@ var nameRegex = regexp.MustCompile(`(name|app|secretName|serviceName|serviceAcco
 
 // LoadAndCustomizeObjects reads all objects stored in a pmem-csi.yaml reference file
 // and updates them on-the-fly according to the deployment spec, namespace and name.
-func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode api.DeviceMode,
+func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode base.DeviceMode,
 	namespace string, deployment api.Deployment) ([]unstructured.Unstructured, error) {
 
 	// Conceptually this function is similar to calling "kustomize" for
@@ -41,7 +42,7 @@ func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode api.DeviceMo
 	patchYAML := func(yaml *[]byte) {
 		// This renames the objects. A hyphen is used instead of a dot,
 		// except for CSIDriver which needs the exact name.
-		*yaml = nameRegex.ReplaceAll(*yaml, []byte("$1: "+deployment.GetHyphenedName()))
+		*yaml = nameRegex.ReplaceAll(*yaml, []byte("$1: "+base.GetHyphenedName(&deployment)))
 
 		// Update the driver name inside the state and socket dir.
 		*yaml = bytes.ReplaceAll(*yaml, []byte("path: /var/lib/pmem-csi.intel.com"), []byte("path: /var/lib/"+deployment.Name))
@@ -49,7 +50,7 @@ func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode api.DeviceMo
 		*yaml = bytes.ReplaceAll(*yaml, []byte("path: /var/lib/kubelet/plugins/pmem-csi.intel.com"), []byte("path: /var/lib/kubelet/plugins/"+deployment.Name))
 
 		// Update kubelet path
-		if deployment.Spec.KubeletDir != api.DefaultKubeletDir {
+		if deployment.Spec.KubeletDir != base.DefaultKubeletDir {
 			*yaml = bytes.ReplaceAll(*yaml, []byte("/var/lib/kubelet"), []byte(deployment.Spec.KubeletDir))
 		}
 
@@ -59,7 +60,7 @@ func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode api.DeviceMo
 		// Also rename the prefix inside the registry endpoint.
 		*yaml = bytes.ReplaceAll(*yaml,
 			[]byte("tcp://pmem-csi"),
-			[]byte("tcp://"+deployment.GetHyphenedName()))
+			[]byte("tcp://"+base.GetHyphenedName(&deployment)))
 
 		*yaml = bytes.ReplaceAll(*yaml,
 			[]byte("imagePullPolicy: IfNotPresent"),
@@ -189,7 +190,7 @@ func patchPodTemplate(obj *unstructured.Unstructured, deployment api.Deployment,
 	return nil
 }
 
-func loadObjects(kubernetes version.Version, deviceMode api.DeviceMode,
+func loadObjects(kubernetes version.Version, deviceMode base.DeviceMode,
 	patchYAML func(yaml *[]byte),
 	patchUnstructured func(obj *unstructured.Unstructured)) ([]unstructured.Unstructured, error) {
 	path := fmt.Sprintf("deploy/kubernetes-%s/%s/pmem-csi.yaml", kubernetes, deviceMode)

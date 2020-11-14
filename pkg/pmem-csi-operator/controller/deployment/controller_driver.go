@@ -16,6 +16,7 @@ import (
 	"path"
 	"runtime"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	grpcserver "github.com/intel/pmem-csi/pkg/grpc-server"
 	pmemtls "github.com/intel/pmem-csi/pkg/pmem-csi-operator/pmem-tls"
@@ -253,11 +254,11 @@ func (d *PmemCSIDriver) Reconcile(r *ReconcileDeployment) error {
 	}
 
 	if err := redeployAll(); err != nil {
-		d.SetCondition(api.DriverDeployed, corev1.ConditionFalse, err.Error())
+		d.SetCondition(base.DriverDeployed, corev1.ConditionFalse, err.Error())
 		return err
 	}
 
-	d.SetCondition(api.DriverDeployed, corev1.ConditionTrue, "Driver deployed successfully.")
+	d.SetCondition(base.DriverDeployed, corev1.ConditionTrue, "Driver deployed successfully.")
 
 	klog.Infof("Deployed '%d' objects.", len(allObjects))
 	// FIXME(avalluri): Limit the obsolete object deletion either only on version upgrades
@@ -349,7 +350,7 @@ func (d *PmemCSIDriver) redeploy(r *ReconcileDeployment, ro redeployObject) (api
 func (d *PmemCSIDriver) redeploySecrets(r *ReconcileDeployment) ([]*corev1.Secret, error) {
 	rs := &corev1.Secret{
 		TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
-		ObjectMeta: d.getObjectMeta(d.RegistrySecretName(), false),
+		ObjectMeta: d.getObjectMeta(base.RegistrySecretName(d), false),
 	}
 	if err := d.getSubObject(r, rs); err != nil {
 		return nil, err
@@ -358,7 +359,7 @@ func (d *PmemCSIDriver) redeploySecrets(r *ReconcileDeployment) ([]*corev1.Secre
 
 	ns := &corev1.Secret{
 		TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
-		ObjectMeta: d.getObjectMeta(d.NodeSecretName(), false),
+		ObjectMeta: d.getObjectMeta(base.NodeSecretName(d), false),
 	}
 	if err := d.getSubObject(r, ns); err != nil {
 		return nil, err
@@ -378,7 +379,7 @@ func (d *PmemCSIDriver) redeploySecrets(r *ReconcileDeployment) ([]*corev1.Secre
 		return nil
 	}
 
-	certsProvided, err := d.HaveCertificatesConfigured()
+	certsProvided, err := d.Spec.HaveCertificatesConfigured()
 	if err != nil {
 		return nil, err
 	}
@@ -387,15 +388,15 @@ func (d *PmemCSIDriver) redeploySecrets(r *ReconcileDeployment) ([]*corev1.Secre
 	if certsProvided {
 		// Use  provided certificates
 		if err := d.validateCertificates(); err != nil {
-			d.SetCondition(api.CertsVerified, corev1.ConditionFalse, err.Error())
+			d.SetCondition(base.CertsVerified, corev1.ConditionFalse, err.Error())
 			return nil, err
 		}
-		d.SetCondition(api.CertsVerified, corev1.ConditionTrue, "Driver certificates validated.")
+		d.SetCondition(base.CertsVerified, corev1.ConditionTrue, "Driver certificates validated.")
 		updateSecrets = true
 	} else if rop.IsNew() || nop.IsNew() {
 		// Provision new self-signed certificates if not already present
 		if err := d.provisionCertificates(); err != nil {
-			d.SetCondition(api.CertsReady, corev1.ConditionFalse, err.Error())
+			d.SetCondition(base.CertsReady, corev1.ConditionFalse, err.Error())
 			return nil, err
 		}
 		updateSecrets = true
@@ -406,7 +407,7 @@ func (d *PmemCSIDriver) redeploySecrets(r *ReconcileDeployment) ([]*corev1.Secre
 			return nil, err
 		}
 	}
-	d.SetCondition(api.CertsReady, corev1.ConditionTrue, "Driver certificates are available.")
+	d.SetCondition(base.CertsReady, corev1.ConditionTrue, "Driver certificates are available.")
 
 	return []*corev1.Secret{rs, ns}, nil
 }
@@ -417,7 +418,7 @@ func (d *PmemCSIDriver) redeployNodeDriver(r *ReconcileDeployment) (apiruntime.O
 		object: func() apiruntime.Object {
 			return &appsv1.DaemonSet{
 				TypeMeta:   metav1.TypeMeta{Kind: "DaemonSet", APIVersion: "apps/v1"},
-				ObjectMeta: d.getObjectMeta(d.NodeDriverName(), false),
+				ObjectMeta: d.getObjectMeta(base.NodeDriverName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -437,7 +438,7 @@ func (d *PmemCSIDriver) redeployNodeDriver(r *ReconcileDeployment) (apiruntime.O
 			} else {
 				reason = fmt.Sprintf("%d out of %d driver pods are ready", ds.Status.NumberReady, ds.Status.NumberAvailable)
 			}
-			d.SetDriverStatus(api.NodeDriver, status, reason)
+			d.SetDriverStatus(base.NodeDriver, status, reason)
 			return nil
 		},
 	})
@@ -449,7 +450,7 @@ func (d *PmemCSIDriver) redeployControllerDriver(r *ReconcileDeployment) (apirun
 		object: func() apiruntime.Object {
 			return &appsv1.StatefulSet{
 				TypeMeta:   metav1.TypeMeta{Kind: "StatefulSet", APIVersion: "apps/v1"},
-				ObjectMeta: d.getObjectMeta(d.ControllerDriverName(), false),
+				ObjectMeta: d.getObjectMeta(base.ControllerDriverName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -470,7 +471,7 @@ func (d *PmemCSIDriver) redeployControllerDriver(r *ReconcileDeployment) (apirun
 				reason = fmt.Sprintf("Waiting for stateful set to be ready: %d of %d replicas are ready",
 					ss.Status.ReadyReplicas, ss.Status.Replicas)
 			}
-			d.SetDriverStatus(api.ControllerDriver, status, reason)
+			d.SetDriverStatus(base.ControllerDriver, status, reason)
 			return nil
 		},
 	})
@@ -481,7 +482,7 @@ func (d *PmemCSIDriver) redeployControllerService(r *ReconcileDeployment) (apiru
 		object: func() apiruntime.Object {
 			return &corev1.Service{
 				TypeMeta:   metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
-				ObjectMeta: d.getObjectMeta(d.ControllerServiceName(), false),
+				ObjectMeta: d.getObjectMeta(base.ControllerServiceName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -496,7 +497,7 @@ func (d *PmemCSIDriver) redeployMetricsService(r *ReconcileDeployment) (apirunti
 		object: func() apiruntime.Object {
 			return &corev1.Service{
 				TypeMeta:   metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
-				ObjectMeta: d.getObjectMeta(d.MetricsServiceName(), false),
+				ObjectMeta: d.getObjectMeta(base.MetricsServiceName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -511,7 +512,7 @@ func (d *PmemCSIDriver) redeployCSIDriver(r *ReconcileDeployment) (apiruntime.Ob
 		object: func() apiruntime.Object {
 			return &storagev1beta1.CSIDriver{
 				TypeMeta:   metav1.TypeMeta{Kind: "CSIDriver", APIVersion: "storage.k8s.io/v1beta1"},
-				ObjectMeta: d.getObjectMeta(d.CSIDriverName(), true),
+				ObjectMeta: d.getObjectMeta(base.CSIDriverName(d), true),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -526,7 +527,7 @@ func (d *PmemCSIDriver) redeployProvisionerRole(r *ReconcileDeployment) (apirunt
 		object: func() apiruntime.Object {
 			return &rbacv1.Role{
 				TypeMeta:   metav1.TypeMeta{Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1"},
-				ObjectMeta: d.getObjectMeta(d.ProvisionerRoleName(), false),
+				ObjectMeta: d.getObjectMeta(base.ProvisionerRoleName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -541,7 +542,7 @@ func (d *PmemCSIDriver) redeployProvisionerRoleBinding(r *ReconcileDeployment) (
 		object: func() apiruntime.Object {
 			return &rbacv1.RoleBinding{
 				TypeMeta:   metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"},
-				ObjectMeta: d.getObjectMeta(d.ProvisionerRoleBindingName(), false),
+				ObjectMeta: d.getObjectMeta(base.ProvisionerRoleBindingName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -556,7 +557,7 @@ func (d *PmemCSIDriver) redeployProvisionerClusterRole(r *ReconcileDeployment) (
 		object: func() apiruntime.Object {
 			return &rbacv1.ClusterRole{
 				TypeMeta:   metav1.TypeMeta{Kind: "ClusterRole", APIVersion: "rbac.authorization.k8s.io/v1"},
-				ObjectMeta: d.getObjectMeta(d.ProvisionerClusterRoleName(), true),
+				ObjectMeta: d.getObjectMeta(base.ProvisionerClusterRoleName(d), true),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -571,7 +572,7 @@ func (d *PmemCSIDriver) redeployProvisionerClusterRoleBinding(r *ReconcileDeploy
 		object: func() apiruntime.Object {
 			return &rbacv1.ClusterRoleBinding{
 				TypeMeta:   metav1.TypeMeta{Kind: "ClusterRoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"},
-				ObjectMeta: d.getObjectMeta(d.ProvisionerClusterRoleBindingName(), true),
+				ObjectMeta: d.getObjectMeta(base.ProvisionerClusterRoleBindingName(d), true),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -586,7 +587,7 @@ func (d *PmemCSIDriver) redeployServiceAccount(r *ReconcileDeployment) (apirunti
 		object: func() apiruntime.Object {
 			return &corev1.ServiceAccount{
 				TypeMeta:   metav1.TypeMeta{Kind: "ServiceAccount", APIVersion: "v1"},
-				ObjectMeta: d.getObjectMeta(d.ServiceAccountName(), false),
+				ObjectMeta: d.getObjectMeta(base.ServiceAccountName(d), false),
 			}
 		},
 		modify: func(o apiruntime.Object) error {
@@ -650,9 +651,9 @@ func (d *PmemCSIDriver) HandleEvent(meta metav1.Object, obj apiruntime.Object, r
 	case *corev1.Service:
 		var err error
 		klog.Infof("Redeploying service: %s", meta.GetName())
-		if meta.GetName() == d.ControllerServiceName() {
+		if meta.GetName() == base.ControllerServiceName(d) {
 			_, err = d.redeployControllerService(r)
-		} else if meta.GetName() == d.MetricsServiceName() {
+		} else if meta.GetName() == base.MetricsServiceName(d) {
 			_, err = d.redeployMetricsService(r)
 		}
 		if err != nil {
@@ -880,7 +881,7 @@ func (d *PmemCSIDriver) getService(service *corev1.Service, t corev1.ServiceType
 		IntVal: port,
 	}
 	service.Spec.Selector = map[string]string{
-		"app": d.GetHyphenedName() + "-controller",
+		"app": base.GetHyphenedName(d) + "-controller",
 	}
 }
 
@@ -939,14 +940,14 @@ func (d *PmemCSIDriver) getControllerProvisionerRoleBinding(rb *rbacv1.RoleBindi
 	rb.Subjects = []rbacv1.Subject{
 		{
 			Kind:      "ServiceAccount",
-			Name:      d.GetHyphenedName() + "-controller",
+			Name:      base.ServiceAccountName(d),
 			Namespace: d.namespace,
 		},
 	}
 	rb.RoleRef = rbacv1.RoleRef{
 		APIGroup: "rbac.authorization.k8s.io",
 		Kind:     "Role",
-		Name:     d.GetHyphenedName() + "-external-provisioner-cfg",
+		Name:     base.ProvisionerRoleName(d),
 	}
 }
 
@@ -1015,14 +1016,14 @@ func (d *PmemCSIDriver) getControllerProvisionerClusterRoleBinding(crb *rbacv1.C
 	crb.Subjects = []rbacv1.Subject{
 		{
 			Kind:      "ServiceAccount",
-			Name:      d.ServiceAccountName(),
+			Name:      base.ServiceAccountName(d),
 			Namespace: d.namespace,
 		},
 	}
 	crb.RoleRef = rbacv1.RoleRef{
 		APIGroup: "rbac.authorization.k8s.io",
 		Kind:     "ClusterRole",
-		Name:     d.ProvisionerClusterRoleName(),
+		Name:     base.ProvisionerClusterRoleName(d),
 	}
 }
 
@@ -1035,16 +1036,16 @@ func (d *PmemCSIDriver) getControllerStatefulSet(ss *appsv1.StatefulSet) {
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"app": d.GetHyphenedName() + "-controller",
+				"app": base.ControllerDriverName(d),
 			},
 		},
-		ServiceName: d.GetHyphenedName() + "-controller",
+		ServiceName: base.ControllerServiceName(d),
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: joinMaps(
 					d.Spec.Labels,
 					map[string]string{
-						"app":                        d.GetHyphenedName() + "-controller",
+						"app":                        base.ControllerDriverName(d),
 						"pmem-csi.intel.com/webhook": "ignore",
 					}),
 				Annotations: map[string]string{
@@ -1057,7 +1058,7 @@ func (d *PmemCSIDriver) getControllerStatefulSet(ss *appsv1.StatefulSet) {
 					RunAsNonRoot: &true,
 					RunAsUser:    &pmemcsiUser,
 				},
-				ServiceAccountName: d.GetHyphenedName() + "-controller",
+				ServiceAccountName: base.ServiceAccountName(d),
 				Containers: []corev1.Container{
 					d.getControllerContainer(),
 					d.getProvisionerContainer(),
@@ -1110,7 +1111,7 @@ func (d *PmemCSIDriver) getControllerStatefulSet(ss *appsv1.StatefulSet) {
 						Name: "registry-cert",
 						VolumeSource: corev1.VolumeSource{
 							Secret: &corev1.SecretVolumeSource{
-								SecretName: d.GetHyphenedName() + "-registry-secrets",
+								SecretName: base.RegistrySecretName(d),
 							},
 						},
 					},
@@ -1131,7 +1132,7 @@ func (d *PmemCSIDriver) getNodeDaemonSet(ds *appsv1.DaemonSet) {
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"app": d.GetHyphenedName() + "-node",
+				"app": base.NodeDriverName(d),
 			},
 		},
 		Template: corev1.PodTemplateSpec{
@@ -1139,7 +1140,7 @@ func (d *PmemCSIDriver) getNodeDaemonSet(ds *appsv1.DaemonSet) {
 				Labels: joinMaps(
 					d.Spec.Labels,
 					map[string]string{
-						"app":                        d.GetHyphenedName() + "-node",
+						"app":                        base.NodeDriverName(d),
 						"pmem-csi.intel.com/webhook": "ignore",
 					}),
 				Annotations: map[string]string{
@@ -1193,7 +1194,7 @@ func (d *PmemCSIDriver) getNodeDaemonSet(ds *appsv1.DaemonSet) {
 						Name: "node-cert",
 						VolumeSource: corev1.VolumeSource{
 							Secret: &corev1.SecretVolumeSource{
-								SecretName: d.GetHyphenedName() + "-node-secrets",
+								SecretName: base.NodeSecretName(d),
 							},
 						},
 					},
@@ -1256,7 +1257,7 @@ func (d *PmemCSIDriver) getNodeDriverCommand() []string {
 		"-nodeid=$(KUBE_NODE_NAME)",
 		fmt.Sprintf("-controllerEndpoint=tcp://$(KUBE_POD_IP):%d", nodeControllerPort),
 		// User controller service name(== deployment name) as registry endpoint.
-		fmt.Sprintf("-registryEndpoint=tcp://%s-controller:%d", d.GetHyphenedName(), controllerServicePort),
+		fmt.Sprintf("-registryEndpoint=tcp://%s-controller:%d", base.GetHyphenedName(d), controllerServicePort),
 		"-caFile=/certs/ca.crt",
 		"-certFile=/certs/tls.crt",
 		"-keyFile=/certs/tls.key",

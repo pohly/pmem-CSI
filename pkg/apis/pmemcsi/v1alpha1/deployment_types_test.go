@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/intel/pmem-csi/pkg/apis"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -42,22 +43,22 @@ var _ = Describe("Operator", func() {
 			err := d.EnsureDefaults("")
 			Expect(err).ShouldNot(HaveOccurred(), "ensure defaults")
 
-			Expect(d.Spec.LogLevel).Should(BeEquivalentTo(api.DefaultLogLevel), "default logging level mismatch")
-			Expect(d.Spec.DeviceMode).Should(BeEquivalentTo(api.DefaultDeviceMode), "default driver mode mismatch")
-			Expect(d.Spec.Image).Should(BeEquivalentTo(api.DefaultDriverImage), "default driver image mismatch")
-			Expect(d.Spec.PullPolicy).Should(BeEquivalentTo(api.DefaultImagePullPolicy), "default image pull policy mismatch")
-			Expect(d.Spec.ProvisionerImage).Should(BeEquivalentTo(api.DefaultProvisionerImage), "default provisioner image mismatch")
-			Expect(d.Spec.NodeRegistrarImage).Should(BeEquivalentTo(api.DefaultRegistrarImage), "default node driver registrar image mismatch")
+			Expect(d.Spec.LogLevel).Should(BeEquivalentTo(base.DefaultLogLevel), "default logging level mismatch")
+			Expect(d.Spec.DeviceMode).Should(BeEquivalentTo(base.DefaultDeviceMode), "default driver mode mismatch")
+			Expect(d.Spec.Image).Should(BeEquivalentTo(base.DefaultDriverImage), "default driver image mismatch")
+			Expect(d.Spec.PullPolicy).Should(BeEquivalentTo(base.DefaultImagePullPolicy), "default image pull policy mismatch")
+			Expect(d.Spec.ProvisionerImage).Should(BeEquivalentTo(base.DefaultProvisionerImage), "default provisioner image mismatch")
+			Expect(d.Spec.NodeRegistrarImage).Should(BeEquivalentTo(base.DefaultRegistrarImage), "default node driver registrar image mismatch")
 
 			Expect(d.Spec.ControllerResources).ShouldNot(BeNil(), "default controller resources not set")
 			rs := d.Spec.ControllerResources.Limits
-			Expect(rs.Cpu().String()).Should(BeEquivalentTo(api.DefaultControllerResourceCPU), "controller driver 'cpu' resource mismatch")
-			Expect(rs.Memory().String()).Should(BeEquivalentTo(api.DefaultControllerResourceMemory), "controller driver 'memory' resource mismatch")
+			Expect(rs.Cpu().String()).Should(BeEquivalentTo(base.DefaultControllerResourceLimitCPU), "controller driver 'cpu' resource limit mismatch")
+			Expect(rs.Memory().String()).Should(BeEquivalentTo(base.DefaultControllerResourceLimitMemory), "controller driver 'memory' resource limit mismatch")
 
 			Expect(d.Spec.NodeResources).ShouldNot(BeNil(), "default node resources not set")
 			nrs := d.Spec.NodeResources.Limits
-			Expect(nrs.Cpu().String()).Should(BeEquivalentTo(api.DefaultNodeResourceCPU), "node driver 'cpu' resource mismatch")
-			Expect(nrs.Memory().String()).Should(BeEquivalentTo(api.DefaultNodeResourceMemory), "node driver 'cpu' resource mismatch")
+			Expect(nrs.Cpu().String()).Should(BeEquivalentTo(base.DefaultNodeResourceLimitCPU), "node driver 'cpu' resource limit mismatch")
+			Expect(nrs.Memory().String()).Should(BeEquivalentTo(base.DefaultNodeResourceLimitMemory), "node driver 'memory' resource limit mismatch")
 		})
 
 		It("shall be able to set values", func() {
@@ -120,7 +121,12 @@ spec:
 			_, _, err = deserializer.Decode(data, nil, crd)
 			Expect(err).ShouldNot(HaveOccurred(), "decode crd file")
 
-			crdProp := crd.Spec.Versions[0].Schema.OpenAPIV3Schema
+			var crdProp *apiextensions.JSONSchemaProps
+			for _, v := range crd.Spec.Versions {
+				if v.Name == api.SchemeBuilder.GroupVersion.Version {
+					crdProp = v.Schema.OpenAPIV3Schema
+				}
+			}
 			Expect(crdProp).ShouldNot(BeNil(), "Nil CRD schmea")
 			Expect(crdProp.Type).Should(BeEquivalentTo("object"), "Deployment JSON schema type mismatch")
 			spec, ok := crdProp.Properties["spec"]

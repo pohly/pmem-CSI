@@ -183,6 +183,8 @@ spec:
               conditions:
                 description: Conditions
                 items:
+                  description: DeploymentCondition type definition for driver deployment
+                    status conditions
                   properties:
                     lastUpdateTime:
                       description: Last time the condition was probed.
@@ -205,6 +207,8 @@ spec:
                 type: array
               driverComponents:
                 items:
+                  description: DriverStatus type definition for representing deployed
+                    driver status
                   properties:
                     component:
                       description: 'DriverComponent represents type of the driver:

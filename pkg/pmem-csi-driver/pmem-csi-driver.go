@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	grpcserver "github.com/intel/pmem-csi/pkg/grpc-server"
 	pmdmanager "github.com/intel/pmem-csi/pkg/pmem-device-manager"
 	pmemgrpc "github.com/intel/pmem-csi/pkg/pmem-grpc"
@@ -141,7 +141,7 @@ type Config struct {
 	//ControllerEndpoint exported node controller endpoint
 	ControllerEndpoint string
 	//DeviceManager device manager to use
-	DeviceManager api.DeviceMode
+	DeviceManager base.DeviceMode
 	//Directory where to persist the node driver state
 	StateBasePath string
 	//Version driver release version

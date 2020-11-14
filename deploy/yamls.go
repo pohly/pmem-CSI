@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"regexp"
 
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	"github.com/intel/pmem-csi/pkg/version"
 )
 
@@ -29,7 +29,7 @@ type YamlFile struct {
 
 	// DeviceMode defines in which mode the deployed driver will
 	// operate.
-	DeviceMode api.DeviceMode
+	DeviceMode base.DeviceMode
 }
 
 var yamls []YamlFile
@@ -50,7 +50,7 @@ func init() {
 			Name:       file,
 			Kubernetes: kubernetes,
 			Flavor:     parts[3],
-			DeviceMode: api.DeviceMode(parts[3]),
+			DeviceMode: base.DeviceMode(parts[3]),
 		})
 	}
 }

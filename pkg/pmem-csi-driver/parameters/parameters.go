@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -58,7 +58,7 @@ const (
 // valid is a whitelist of which parameters are valid in which context.
 var valid = map[Origin][]string{
 	// Parameters from Kubernetes and users for a persistent volume.
-	CreateVolumeOrigin: []string{
+	CreateVolumeOrigin: {
 		CacheSize,
 		EraseAfter,
 		KataContainers,
@@ -66,7 +66,7 @@ var valid = map[Origin][]string{
 	},
 
 	// These parameters are prepared by the master controller.
-	CreateVolumeInternalOrigin: []string{
+	CreateVolumeInternalOrigin: {
 		CacheSize,
 		EraseAfter,
 		KataContainers,
@@ -76,7 +76,7 @@ var valid = map[Origin][]string{
 	},
 
 	// Parameters from Kubernetes and users.
-	EphemeralVolumeOrigin: []string{
+	EphemeralVolumeOrigin: {
 		EraseAfter,
 		KataContainers,
 		PodInfoPrefix,
@@ -88,7 +88,7 @@ var valid = map[Origin][]string{
 	// version of PMEM-CSI might need them (the current one
 	// doesn't) and add the volume name for logging purposes.
 	// Kubernetes adds pod info and provisioner ID.
-	PersistentVolumeOrigin: []string{
+	PersistentVolumeOrigin: {
 		CacheSize,
 		EraseAfter,
 		KataContainers,
@@ -101,7 +101,7 @@ var valid = map[Origin][]string{
 
 	// Internally we store everything except the volume ID,
 	// which is handled separately.
-	NodeVolumeOrigin: []string{
+	NodeVolumeOrigin: {
 		CacheSize,
 		EraseAfter,
 		KataContainers,

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	"github.com/intel/pmem-csi/pkg/exec"
 	"github.com/intel/pmem-csi/pkg/k8sutil"
@@ -50,7 +51,9 @@ func getDeployment(name string) api.Deployment {
 			Name: name,
 		},
 		Spec: api.DeploymentSpec{
-			Image: dummyImage,
+			DeploymentSpec: base.DeploymentSpec{
+				Image: dummyImage,
+			},
 		},
 	}
 }
@@ -113,7 +116,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 		framework.Logf("got expected driver deployment %s", deployment.Name)
 	}
 
-	validateConditions := func(depName string, expected map[api.DeploymentConditionType]corev1.ConditionStatus, what ...interface{}) {
+	validateConditions := func(depName string, expected map[base.DeploymentConditionType]corev1.ConditionStatus, what ...interface{}) {
 		if what == nil {
 			what = []interface{}{"validate driver(%s) status conditions", depName}
 		}
@@ -145,9 +148,11 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 					Name: "test-deployment-with-explicit",
 				},
 				Spec: api.DeploymentSpec{
-					DeviceMode: api.DeviceModeDirect,
-					PullPolicy: corev1.PullNever,
-					Image:      dummyImage,
+					DeploymentSpec: base.DeploymentSpec{
+						DeviceMode: base.DeviceModeDirect,
+						PullPolicy: corev1.PullNever,
+						Image:      dummyImage,
+					},
 					ControllerResources: &corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("200m"),
@@ -170,9 +175,9 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				deployment = deploy.CreateDeploymentCR(f, deployment)
 				defer deploy.DeleteDeploymentCR(f, deployment.Name)
 				validateDriver(deployment)
-				validateConditions(deployment.Name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-					api.CertsReady:     corev1.ConditionTrue,
-					api.DriverDeployed: corev1.ConditionTrue,
+				validateConditions(deployment.Name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+					base.CertsReady:     corev1.ConditionTrue,
+					base.DriverDeployed: corev1.ConditionTrue,
 				})
 			})
 		}
@@ -184,7 +189,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			// Only values that are visible in Deployment CR are shown in `kubectl get`
 			// but, not the default values chosen by the operator.
 			// So provide the values that are expected to list.
-			deployment.Spec.DeviceMode = api.DeviceModeDirect
+			deployment.Spec.DeviceMode = base.DeviceModeDirect
 			deployment.Spec.PullPolicy = corev1.PullNever
 			deployment.Spec.Image = dummyImage
 			deployment.Spec.NodeSelector = map[string]string{
@@ -284,10 +289,10 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			deployment = deploy.CreateDeploymentCR(f, deployment)
 			defer deploy.DeleteDeploymentCR(f, deployment.Name)
 			validateDriver(deployment, true)
-			validateConditions(deployment.Name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.CertsVerified:  corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			validateConditions(deployment.Name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.CertsVerified:  corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -298,9 +303,9 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 
 			defer deploy.DeleteDeploymentCR(f, deployment.Name)
 			validateDriver(deployment, true)
-			validateConditions(deployment.Name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			validateConditions(deployment.Name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 
 			// Stop the operator
@@ -327,7 +332,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      deployment.GetHyphenedName() + "-registry-secrets",
+					Name:      base.RegistrySecretName(&deployment),
 					Namespace: d.Namespace,
 				},
 				Type: corev1.SecretTypeTLS,
@@ -361,7 +366,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			// exists and is owned by others.
 			Eventually(func() bool {
 				out := deploy.GetDeploymentCR(f, deployment.Name)
-				return out.Status.Phase == api.DeploymentPhaseFailed
+				return out.Status.Phase == base.DeploymentPhaseFailed
 			}, "3m", "1s").Should(BeTrue(), "deployment should fail %q", deployment.Name)
 
 			// Deleting the existing secret should make the deployment succeed.
@@ -371,12 +376,12 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 	})
 
 	Context("switch device mode", func() {
-		postSwitchFuncs := map[string]func(from, to api.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim){
-			"delete volume": func(from, to api.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim) {
+		postSwitchFuncs := map[string]func(from, to base.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim){
+			"delete volume": func(from, to base.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim) {
 				// Delete Volume created in `from` device mode
 				deletePVC(f, pvc.Namespace, pvc.Name)
 			},
-			"use volume": func(from, to api.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim) {
+			"use volume": func(from, to base.DeviceMode, depName string, pvc *corev1.PersistentVolumeClaim) {
 				// Switch back to original device mode
 				switchDeploymentMode(c, f, depName, from)
 
@@ -441,7 +446,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			},
 		}
 
-		defineSwitchModeTests := func(ctx string, from, to api.DeviceMode) {
+		defineSwitchModeTests := func(ctx string, from, to base.DeviceMode) {
 			for name, postSwitch := range postSwitchFuncs {
 				Context(ctx, func() {
 					name := name
@@ -453,11 +458,13 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 								Name: driverName,
 							},
 							Spec: api.DeploymentSpec{
-								DeviceMode:     from,
-								PMEMPercentage: 50,
-								NodeSelector: map[string]string{
-									// Provided by NFD.
-									"feature.node.kubernetes.io/memory-nv.dax": "true",
+								DeploymentSpec: base.DeploymentSpec{
+									DeviceMode:     from,
+									PMEMPercentage: 50,
+									NodeSelector: map[string]string{
+										// Provided by NFD.
+										"feature.node.kubernetes.io/memory-nv.dax": "true",
+									},
 								},
 							},
 						}
@@ -503,8 +510,8 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			}
 		}
 
-		defineSwitchModeTests("lvm-to-direct", api.DeviceModeLVM, api.DeviceModeDirect)
-		defineSwitchModeTests("direct-to-lvm", api.DeviceModeDirect, api.DeviceModeLVM)
+		defineSwitchModeTests("lvm-to-direct", base.DeviceModeLVM, base.DeviceModeDirect)
+		defineSwitchModeTests("direct-to-lvm", base.DeviceModeDirect, base.DeviceModeLVM)
 	})
 
 	Context("updating", func() {
@@ -527,7 +534,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 					// operator should have modified the status, and only the status.
 					modifiedDeployment := deploy.GetDeploymentCR(f, deployment.Name)
 					Expect(modifiedDeployment.Spec).To(Equal(deployment.Spec), "spec unmodified")
-					Expect(modifiedDeployment.Status.Phase).To(Equal(api.DeploymentPhaseRunning), "deployment phase")
+					Expect(modifiedDeployment.Status.Phase).To(Equal(base.DeploymentPhaseRunning), "deployment phase")
 
 					restored := false
 					if restart {
@@ -567,48 +574,48 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				"registry secret": func(dep *api.Deployment) apiruntime.Object {
 					return &corev1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
-							Name: dep.RegistrySecretName(), Namespace: d.Namespace,
+							Name: base.RegistrySecretName(dep), Namespace: d.Namespace,
 						},
 					}
 				},
 				"node secret": func(dep *api.Deployment) apiruntime.Object {
 					return &corev1.Secret{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.NodeSecretName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.NodeSecretName(dep), Namespace: d.Namespace},
 					}
 				},
 				"service account": func(dep *api.Deployment) apiruntime.Object {
 					return &corev1.ServiceAccount{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ServiceAccountName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ServiceAccountName(dep), Namespace: d.Namespace},
 					}
 				},
 				"controller service": func(dep *api.Deployment) apiruntime.Object {
 					return &corev1.Service{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ControllerServiceName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ControllerServiceName(dep), Namespace: d.Namespace},
 					}
 				},
 				"metrics service": func(dep *api.Deployment) apiruntime.Object {
 					return &corev1.Service{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.MetricsServiceName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.MetricsServiceName(dep), Namespace: d.Namespace},
 					}
 				},
 				"provisioner role": func(dep *api.Deployment) apiruntime.Object {
 					return &rbacv1.Role{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ProvisionerRoleName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ProvisionerRoleName(dep), Namespace: d.Namespace},
 					}
 				},
 				"provisioner role binding": func(dep *api.Deployment) apiruntime.Object {
 					return &rbacv1.RoleBinding{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ProvisionerRoleBindingName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ProvisionerRoleBindingName(dep), Namespace: d.Namespace},
 					}
 				},
 				"provisioner cluster role": func(dep *api.Deployment) apiruntime.Object {
 					return &rbacv1.ClusterRole{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ProvisionerClusterRoleName()},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ProvisionerClusterRoleName(dep)},
 					}
 				},
 				"provisioner cluster role binding": func(dep *api.Deployment) apiruntime.Object {
 					return &rbacv1.ClusterRoleBinding{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ProvisionerClusterRoleBindingName()},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ProvisionerClusterRoleBindingName(dep)},
 					}
 				},
 				"csi driver": func(dep *api.Deployment) apiruntime.Object {
@@ -618,12 +625,12 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				},
 				"controller driver": func(dep *api.Deployment) apiruntime.Object {
 					return &appsv1.StatefulSet{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.ControllerDriverName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.ControllerDriverName(dep), Namespace: d.Namespace},
 					}
 				},
 				"node driver": func(dep *api.Deployment) apiruntime.Object {
 					return &appsv1.DaemonSet{
-						ObjectMeta: metav1.ObjectMeta{Name: dep.NodeDriverName(), Namespace: d.Namespace},
+						ObjectMeta: metav1.ObjectMeta{Name: base.NodeDriverName(dep), Namespace: d.Namespace},
 					}
 				},
 			}
@@ -660,7 +667,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			tests := map[string]func(dep *api.Deployment) apiruntime.Object{
 				"controller": func(dep *api.Deployment) apiruntime.Object {
 					obj := &appsv1.StatefulSet{}
-					key := runtime.ObjectKey{Name: dep.ControllerDriverName(), Namespace: d.Namespace}
+					key := runtime.ObjectKey{Name: base.ControllerDriverName(dep), Namespace: d.Namespace}
 					EventuallyWithOffset(1, func() error {
 						return client.Get(context.TODO(), key, obj)
 					}, "2m", "1s").ShouldNot(HaveOccurred(), "get stateful set")
@@ -675,7 +682,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				},
 				"node driver": func(dep *api.Deployment) apiruntime.Object {
 					obj := &appsv1.DaemonSet{}
-					key := runtime.ObjectKey{Name: dep.NodeDriverName(), Namespace: d.Namespace}
+					key := runtime.ObjectKey{Name: base.NodeDriverName(dep), Namespace: d.Namespace}
 					EventuallyWithOffset(1, func() error {
 						return client.Get(context.TODO(), key, obj)
 					}, "2m", "1s").ShouldNot(HaveOccurred(), "get daemon set")
@@ -690,7 +697,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				},
 				"metrics service": func(dep *api.Deployment) apiruntime.Object {
 					obj := &corev1.Service{}
-					key := runtime.ObjectKey{Name: dep.MetricsServiceName(), Namespace: d.Namespace}
+					key := runtime.ObjectKey{Name: base.MetricsServiceName(dep), Namespace: d.Namespace}
 					EventuallyWithOffset(1, func() error {
 						return client.Get(context.TODO(), key, obj)
 					}, "2m", "1s").ShouldNot(HaveOccurred(), "get metrics service set")
@@ -706,7 +713,7 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 				},
 				"controller service": func(dep *api.Deployment) apiruntime.Object {
 					obj := &corev1.Service{}
-					key := runtime.ObjectKey{Name: dep.ControllerServiceName(), Namespace: d.Namespace}
+					key := runtime.ObjectKey{Name: base.ControllerServiceName(dep), Namespace: d.Namespace}
 					EventuallyWithOffset(1, func() error {
 						return client.Get(context.TODO(), key, obj)
 					}, "2m", "1s").ShouldNot(HaveOccurred(), "get metrics service set")
@@ -755,7 +762,7 @@ func validateDeploymentFailure(f *framework.Framework, name string) {
 
 		deployment := deploy.DeploymentFromUnstructured(dep)
 		framework.Logf("Deployment %q is in %q phase", deployment.Name, deployment.Status.Phase)
-		return deployment.Status.Phase == api.DeploymentPhaseFailed
+		return deployment.Status.Phase == base.DeploymentPhaseFailed
 	}, "3m", "5s").Should(BeTrue(), "deployment %q not running", name)
 }
 
@@ -821,7 +828,7 @@ func startOperator(c *deploy.Cluster, d *deploy.Deployment) {
 	framework.Logf("Operator is restored!")
 }
 
-func switchDeploymentMode(c *deploy.Cluster, f *framework.Framework, depName string, mode api.DeviceMode) api.Deployment {
+func switchDeploymentMode(c *deploy.Cluster, f *framework.Framework, depName string, mode base.DeviceMode) api.Deployment {
 	podNames := []string{}
 
 	for i := 1; i < c.NumNodes(); i++ {

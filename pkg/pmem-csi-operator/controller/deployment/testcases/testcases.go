@@ -11,6 +11,7 @@ package testcases
 import (
 	"fmt"
 
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	pmemtls "github.com/intel/pmem-csi/pkg/pmem-csi-operator/pmem-tls"
 
@@ -87,10 +88,21 @@ func UpdateTests() []UpdateTest {
 			Name: "pmem-csi-with-values",
 		},
 		Spec: api.DeploymentSpec{
-			Image:              "base-image",
-			PullPolicy:         corev1.PullIfNotPresent,
-			ProvisionerImage:   "no-such-provisioner-image",
-			NodeRegistrarImage: "no-such-registrar-image",
+			DeploymentSpec: base.DeploymentSpec{
+				Image:              "base-image",
+				PullPolicy:         corev1.PullIfNotPresent,
+				ProvisionerImage:   "no-such-provisioner-image",
+				NodeRegistrarImage: "no-such-registrar-image",
+				DeviceMode:         base.DeviceModeDirect,
+				LogLevel:           4,
+				NodeSelector: map[string]string{
+					"no-such-label": "no-such-value",
+				},
+				PMEMPercentage: 50,
+				Labels: map[string]string{
+					"a": "b",
+				},
+			},
 			ControllerResources: &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("200m"),
@@ -103,21 +115,12 @@ func UpdateTests() []UpdateTest {
 					corev1.ResourceMemory: resource.MustParse("500Mi"),
 				},
 			},
-			DeviceMode: api.DeviceModeDirect,
-			LogLevel:   4,
-			NodeSelector: map[string]string{
-				"no-such-label": "no-such-value",
-			},
-			PMEMPercentage: 50,
-			Labels: map[string]string{
-				"a": "b",
-			},
 		},
 	}
 	SetTLSOrDie(&full.Spec)
 
 	baseDeployments := map[string]api.Deployment{
-		"default deployment": api.Deployment{
+		"default deployment": {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "pmem-csi-with-defaults",
 			},

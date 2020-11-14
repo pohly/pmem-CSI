@@ -16,6 +16,7 @@ import (
 
 	"github.com/intel/pmem-csi/deploy"
 	"github.com/intel/pmem-csi/pkg/apis"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	pmemcontroller "github.com/intel/pmem-csi/pkg/pmem-csi-operator/controller"
 	"github.com/intel/pmem-csi/pkg/pmem-csi-operator/controller/deployment"
@@ -69,7 +70,7 @@ func getDeployment(d *pmemDeployment) *api.Deployment {
 
 	dep.Spec = api.DeploymentSpec{}
 	spec := &dep.Spec
-	spec.DeviceMode = api.DeviceMode(d.deviceMode)
+	spec.DeviceMode = base.DeviceMode(d.deviceMode)
 	spec.LogLevel = d.logLevel
 	spec.Image = d.image
 	spec.PullPolicy = corev1.PullPolicy(d.pullPolicy)
@@ -103,7 +104,7 @@ func getDeployment(d *pmemDeployment) *api.Deployment {
 	return dep
 }
 
-func testDeploymentPhase(t *testing.T, c client.Client, name string, expectedPhase api.DeploymentPhase) {
+func testDeploymentPhase(t *testing.T, c client.Client, name string, expectedPhase base.DeploymentPhase) {
 	depObject := &api.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -129,7 +130,7 @@ func testReconcile(t *testing.T, rc reconcile.Reconciler, name string, expectErr
 	require.Equal(t, expectedRequeue, resp.Requeue, "expected requeue reconcile")
 }
 
-func testReconcilePhase(t *testing.T, rc reconcile.Reconciler, c client.Client, name string, expectErr bool, expectedRequeue bool, expectedPhase api.DeploymentPhase) {
+func testReconcilePhase(t *testing.T, rc reconcile.Reconciler, c client.Client, name string, expectErr bool, expectedRequeue bool, expectedPhase base.DeploymentPhase) {
 	testReconcile(t, rc, name, expectErr, expectedRequeue)
 	testDeploymentPhase(t, c, name, expectedPhase)
 }
@@ -248,7 +249,7 @@ func TestDeploymentController(t *testing.T) {
 			require.ElementsMatch(t, events, expectedEvents, "events must match")
 		}
 
-		validateConditions := func(t *testing.T, tc *testContext, name string, expected map[api.DeploymentConditionType]corev1.ConditionStatus) {
+		validateConditions := func(t *testing.T, tc *testContext, name string, expected map[base.DeploymentConditionType]corev1.ConditionStatus) {
 			dep := &api.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: name,
@@ -294,11 +295,11 @@ func TestDeploymentController(t *testing.T) {
 			err := tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
 
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -324,11 +325,11 @@ func TestDeploymentController(t *testing.T) {
 			require.NoError(t, err, "failed to create deployment")
 
 			// Reconcile now should change Phase to running
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -351,16 +352,16 @@ func TestDeploymentController(t *testing.T) {
 			err = tc.c.Create(context.TODO(), dep2)
 			require.NoError(t, err, "failed to create deployment2")
 
-			conditions := map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			conditions := map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			}
 
-			testReconcilePhase(t, tc.rc, tc.c, d1.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep1, []string{api.EventReasonNew, api.EventReasonRunning}, false)
+			testReconcilePhase(t, tc.rc, tc.c, d1.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep1, []string{base.EventReasonNew, base.EventReasonRunning}, false)
 			validateConditions(t, tc, d1.name, conditions)
-			testReconcilePhase(t, tc.rc, tc.c, d2.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep2, []string{api.EventReasonNew, api.EventReasonRunning}, false)
+			testReconcilePhase(t, tc.rc, tc.c, d2.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep2, []string{base.EventReasonNew, base.EventReasonRunning}, false)
 			validateConditions(t, tc, d2.name, conditions)
 		})
 
@@ -377,9 +378,9 @@ func TestDeploymentController(t *testing.T) {
 			err := tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
 			// Deployment should failed with an error
-			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, api.DeploymentPhaseFailed)
-			validateEvents(t, tc, dep, []string{api.EventReasonNew, api.EventReasonFailed})
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{})
+			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, base.DeploymentPhaseFailed)
+			validateEvents(t, tc, dep, []string{base.EventReasonNew, base.EventReasonFailed})
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{})
 		})
 
 		t.Run("LVM mode", func(t *testing.T) {
@@ -393,11 +394,11 @@ func TestDeploymentController(t *testing.T) {
 
 			err := tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -412,11 +413,11 @@ func TestDeploymentController(t *testing.T) {
 
 			err := tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -438,11 +439,11 @@ func TestDeploymentController(t *testing.T) {
 			require.NoError(t, err, "failed to create deployment")
 
 			// First deployment expected to be successful
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -475,12 +476,12 @@ func TestDeploymentController(t *testing.T) {
 			require.NoError(t, err, "failed to create deployment")
 
 			// First deployment expected to be successful
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.CertsVerified:  corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.CertsVerified:  corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 		})
 
@@ -512,11 +513,11 @@ func TestDeploymentController(t *testing.T) {
 			err = tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
 
-			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, api.DeploymentPhaseFailed)
-			validateEvents(t, tc, dep, []string{api.EventReasonNew, api.EventReasonFailed})
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsVerified:  corev1.ConditionFalse,
-				api.DriverDeployed: corev1.ConditionFalse,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, base.DeploymentPhaseFailed)
+			validateEvents(t, tc, dep, []string{base.EventReasonNew, base.EventReasonFailed})
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsVerified:  corev1.ConditionFalse,
+				base.DriverDeployed: corev1.ConditionFalse,
 			})
 		})
 
@@ -551,11 +552,11 @@ func TestDeploymentController(t *testing.T) {
 			err = tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
 
-			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, api.DeploymentPhaseFailed)
-			validateEvents(t, tc, dep, []string{api.EventReasonNew, api.EventReasonFailed})
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsVerified:  corev1.ConditionFalse,
-				api.DriverDeployed: corev1.ConditionFalse,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, true, true, base.DeploymentPhaseFailed)
+			validateEvents(t, tc, dep, []string{base.EventReasonNew, base.EventReasonFailed})
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsVerified:  corev1.ConditionFalse,
+				base.DriverDeployed: corev1.ConditionFalse,
 			})
 		})
 
@@ -581,20 +582,20 @@ func TestDeploymentController(t *testing.T) {
 			}
 			tc.rc.(*deployment.ReconcileDeployment).AddHook(&hook)
 
-			conditions := map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			conditions := map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			}
 
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
 			validateConditions(t, tc, d.name, conditions)
 
 			tc.rc.(*deployment.ReconcileDeployment).RemoveHook(&hook)
 
 			// Next reconcile phase should catch the deployment changes
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, updatedDep, []string{api.EventReasonNew, api.EventReasonRunning}, true)
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, updatedDep, []string{base.EventReasonNew, base.EventReasonRunning}, true)
 			validateConditions(t, tc, d.name, conditions)
 		})
 
@@ -609,12 +610,12 @@ func TestDeploymentController(t *testing.T) {
 						dep := testcase.Deployment.DeepCopyObject().(*api.Deployment)
 
 						// Assumption is that all the testcases are positive cases.
-						conditions := map[api.DeploymentConditionType]corev1.ConditionStatus{
-							api.CertsReady:     corev1.ConditionTrue,
-							api.DriverDeployed: corev1.ConditionTrue,
+						conditions := map[base.DeploymentConditionType]corev1.ConditionStatus{
+							base.CertsReady:     corev1.ConditionTrue,
+							base.DriverDeployed: corev1.ConditionTrue,
 						}
-						if yes, _ := dep.HaveCertificatesConfigured(); yes {
-							conditions[api.CertsVerified] = corev1.ConditionTrue
+						if yes, _ := dep.Spec.HaveCertificatesConfigured(); yes {
+							conditions[base.CertsVerified] = corev1.ConditionTrue
 						}
 
 						// When working with the fake client, we need to make up a UID.
@@ -623,13 +624,13 @@ func TestDeploymentController(t *testing.T) {
 						err := tc.c.Create(context.TODO(), dep)
 						require.NoError(t, err, "create deployment")
 
-						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, api.DeploymentPhaseRunning)
-						validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
+						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, base.DeploymentPhaseRunning)
+						validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
 
 						// Reconcile now should keep phase as running.
-						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, api.DeploymentPhaseRunning)
-						validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-						validateEvents(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning})
+						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, base.DeploymentPhaseRunning)
+						validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+						validateEvents(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning})
 						validateConditions(t, tc, dep.Name, conditions)
 
 						// Retrieve existing object before updating it.
@@ -647,10 +648,10 @@ func TestDeploymentController(t *testing.T) {
 						require.NoError(t, err, "update deployment")
 
 						// Reconcile is expected to not fail.
-						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, api.DeploymentPhaseRunning)
+						testReconcilePhase(t, tc.rc, tc.c, dep.Name, false, false, base.DeploymentPhaseRunning)
 
 						// Recheck the container resources are updated
-						validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, true)
+						validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, true)
 					}
 
 					t.Run("while running", func(t *testing.T) {
@@ -675,11 +676,11 @@ func TestDeploymentController(t *testing.T) {
 
 			err := tc.c.Create(context.TODO(), dep)
 			require.NoError(t, err, "failed to create deployment")
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, false)
-			validateConditions(t, tc, d.name, map[api.DeploymentConditionType]corev1.ConditionStatus{
-				api.CertsReady:     corev1.ConditionTrue,
-				api.DriverDeployed: corev1.ConditionTrue,
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, false)
+			validateConditions(t, tc, d.name, map[base.DeploymentConditionType]corev1.ConditionStatus{
+				base.CertsReady:     corev1.ConditionTrue,
+				base.DriverDeployed: corev1.ConditionTrue,
 			})
 
 			err = tc.c.Get(context.TODO(), client.ObjectKey{Name: d.name}, dep)
@@ -691,7 +692,7 @@ func TestDeploymentController(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: dep.GetHyphenedName(),
+					Name: base.GetHyphenedName(dep),
 					OwnerReferences: []metav1.OwnerReference{
 						dep.GetOwnerReference(),
 					},
@@ -720,12 +721,12 @@ func TestDeploymentController(t *testing.T) {
 			tc.rc = newReconcileDeployment(tc.c, tc.cs)
 
 			// A fresh reconcile should delete the newly created above ConfigMap
-			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, api.DeploymentPhaseRunning)
+			testReconcilePhase(t, tc.rc, tc.c, d.name, false, false, base.DeploymentPhaseRunning)
 			err = tc.c.Get(context.TODO(), client.ObjectKey{Name: d.name}, dep)
 			require.NoError(t, err, "get deployment")
 			// It is debatable whether the operator should update all objects after
 			// a restart. Currently it does.
-			validateDriver(t, tc, dep, []string{api.EventReasonNew, api.EventReasonRunning}, true)
+			validateDriver(t, tc, dep, []string{base.EventReasonNew, base.EventReasonRunning}, true)
 
 			cm := &corev1.ConfigMap{}
 			err = tc.c.Get(context.TODO(), client.ObjectKey{Name: cm1.Name, Namespace: testNamespace}, cm)

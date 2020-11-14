@@ -14,13 +14,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/intel/pmem-csi/deploy"
+	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	"github.com/intel/pmem-csi/pkg/deployments"
 	"github.com/intel/pmem-csi/pkg/version"
 )
 
 func TestLoadObjects(t *testing.T) {
-	_, err := deployments.LoadObjects(version.NewVersion(1, 0), api.DeviceModeDirect)
+	_, err := deployments.LoadObjects(version.NewVersion(1, 0), base.DeviceModeDirect)
 	assert.Error(t, err, "load yaml for unsupported version")
 
 	yamls := deploy.ListAll()
@@ -59,7 +60,7 @@ func TestLoadObjects(t *testing.T) {
 					if obj.GetKind() == "CSIDriver" {
 						assert.Equal(t, deployment.GetName(), obj.GetName(), "CSIDriver name")
 					} else {
-						assert.Contains(t, obj.GetName(), deployment.GetHyphenedName(), "other object name")
+						assert.Contains(t, obj.GetName(), base.GetHyphenedName(&deployment), "other object name")
 					}
 					switch obj.GetKind() {
 					case "CSIDriver", "ClusterRole", "ClusterRoleBinding":
