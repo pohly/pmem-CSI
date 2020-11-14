@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	"github.com/intel/pmem-csi/pkg/exec"
 	"github.com/intel/pmem-csi/pkg/k8sutil"
 	"github.com/intel/pmem-csi/pkg/pmem-csi-operator/controller/deployment/testcases"
@@ -153,16 +153,28 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 						PullPolicy: corev1.PullNever,
 						Image:      dummyImage,
 					},
-					ControllerResources: &corev1.ResourceRequirements{
+					ControllerDriverResources: &corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("200m"),
 							corev1.ResourceMemory: resource.MustParse("100Mi"),
 						},
 					},
-					NodeResources: &corev1.ResourceRequirements{
+					NodeDriverResources: &corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("500m"),
 							corev1.ResourceMemory: resource.MustParse("500Mi"),
+						},
+					},
+					ProvisionerResources: &corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("210m"),
+							corev1.ResourceMemory: resource.MustParse("110Mi"),
+						},
+					},
+					NodeRegistrarResources: &corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("300m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
 						},
 					},
 				},
@@ -242,16 +254,28 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 			spec.Image = "test-driver-image"
 			spec.PullPolicy = corev1.PullNever
 			spec.ProvisionerImage = "test-provisioner"
-			spec.ControllerResources = &corev1.ResourceRequirements{
+			spec.ControllerDriverResources = &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("200m"),
 					corev1.ResourceMemory: resource.MustParse("100Mi"),
 				},
 			}
-			spec.NodeResources = &corev1.ResourceRequirements{
+			spec.NodeDriverResources = &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("500m"),
 					corev1.ResourceMemory: resource.MustParse("500Mi"),
+				},
+			}
+			spec.ProvisionerResources = &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("300m"),
+					corev1.ResourceMemory: resource.MustParse("300Mi"),
+				},
+			}
+			spec.NodeRegistrarResources = &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("200Mi"),
 				},
 			}
 			testcases.SetTLSOrDie(spec)

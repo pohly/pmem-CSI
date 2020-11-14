@@ -4,7 +4,7 @@ Copyright 2020 The Kubernetes Authors.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package v1alpha1
+package v1beta1
 
 import (
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
@@ -13,17 +13,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +k8s:deepcopy-gen=true
 // DeploymentSpec defines the desired state of Deployment
+// +k8s:deepcopy-gen=true
 type DeploymentSpec struct {
 	// Important: Run "make operator-generate-k8s" to regenerate code after modifying this file
 
 	base.DeploymentSpec `json:",inline"`
 
-	// ControllerResources Compute resources required by Controller driver
-	ControllerResources *corev1.ResourceRequirements `json:"controllerResources,omitempty"`
-	// NodeResources Compute resources required by Node driver
-	NodeResources *corev1.ResourceRequirements `json:"nodeResources,omitempty"`
+	// ProvisionerResources Compute resources required by provisioner sidecar container
+	ProvisionerResources *corev1.ResourceRequirements `json:"provisionerResources,omitempty"`
+	// NodeRegistrarResources Compute resources required by node registrar sidecar container
+	NodeRegistrarResources *corev1.ResourceRequirements `json:"nodeRegistrarResources,omitempty"`
+	// NodeDriverResources Compute resources required by driver container running on worker nodes
+	NodeDriverResources *corev1.ResourceRequirements `json:"nodeDriverResources,omitempty"`
+	// ControllerDriverResources Compute resources required by driver container running on master node
+	ControllerDriverResources *corev1.ResourceRequirements `json:"controllerDriverResources,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -36,6 +40,7 @@ type DeploymentSpec struct {
 // +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:storageversion
 type Deployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -71,8 +76,8 @@ func (d *Deployment) EnsureDefaults(operatorImage string) error {
 		return err
 	}
 
-	if d.Spec.ControllerResources == nil {
-		d.Spec.ControllerResources = &corev1.ResourceRequirements{
+	if d.Spec.ControllerDriverResources == nil {
+		d.Spec.ControllerDriverResources = &corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse(base.DefaultControllerResourceRequestCPU),
 				corev1.ResourceMemory: resource.MustParse(base.DefaultControllerResourceRequestMemory),
@@ -84,8 +89,21 @@ func (d *Deployment) EnsureDefaults(operatorImage string) error {
 		}
 	}
 
-	if d.Spec.NodeResources == nil {
-		d.Spec.NodeResources = &corev1.ResourceRequirements{
+	if d.Spec.ProvisionerResources == nil {
+		d.Spec.ProvisionerResources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(base.DefaultProvisionerRequestCPU),
+				corev1.ResourceMemory: resource.MustParse(base.DefaultProvisionerRequestMemory),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(base.DefaultProvisionerLimitCPU),
+				corev1.ResourceMemory: resource.MustParse(base.DefaultProvisionerLimitMemory),
+			},
+		}
+	}
+
+	if d.Spec.NodeDriverResources == nil {
+		d.Spec.NodeDriverResources = &corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse(base.DefaultNodeResourceRequestCPU),
 				corev1.ResourceMemory: resource.MustParse(base.DefaultNodeResourceRequestMemory),
@@ -93,6 +111,19 @@ func (d *Deployment) EnsureDefaults(operatorImage string) error {
 			Limits: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse(base.DefaultNodeResourceLimitCPU),
 				corev1.ResourceMemory: resource.MustParse(base.DefaultNodeResourceLimitMemory),
+			},
+		}
+	}
+
+	if d.Spec.NodeRegistrarResources == nil {
+		d.Spec.NodeRegistrarResources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(base.DefaultNodeRegistrarRequestCPU),
+				corev1.ResourceMemory: resource.MustParse(base.DefaultNodeRegistrarRequestMemory),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(base.DefaultNodeRegistrarLimitCPU),
+				corev1.ResourceMemory: resource.MustParse(base.DefaultNodeRegistrarLimitMemory),
 			},
 		}
 	}
@@ -113,4 +144,9 @@ func (d *Deployment) GetOwnerReference() metav1.OwnerReference {
 		BlockOwnerDeletion: &blockOwnerDeletion,
 		Controller:         &isController,
 	}
+}
+
+// HaveCertificatesConfigured checks if the configured deployment
+func (d *Deployment) HaveCertificatesConfigured() (bool, error) {
+	return d.Spec.HaveCertificatesConfigured()
 }

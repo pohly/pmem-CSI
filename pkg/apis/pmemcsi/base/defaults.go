@@ -34,6 +34,26 @@ const (
 	// DefaultRegistrarImage default node driver registrar image to use
 	DefaultRegistrarImage = defaultRegistrarImageName + ":" + defaultRegistrarImageTag
 
+	// Below resource requests and limits are derived(with minor adjustments) from
+	// recommendations reported by VirtualPodAutoscaler(LowerBound -> Requests and UpperBound -> Limits)
+
+	// DefaultControllerResourceRequestCPU default CPU resource request used for controller driver container
+	DefaultControllerResourceRequestCPU = "12m" // MilliSeconds
+	// DefaultControllerResourceRequestMemory default memory resource request used for controller driver container
+	DefaultControllerResourceRequestMemory = "128Mi" // MB
+	// DefaultNodeResourceRequestCPU default CPU resource request used for node driver container
+	DefaultNodeResourceRequestCPU = "100m" // MilliSeconds
+	// DefaultNodeResourceRequestMemory default memory resource request used for node driver container
+	DefaultNodeResourceRequestMemory = "250Mi" // MB
+	// DefaultNodeRegistrarRequestCPU default CPU resource request used for node registrar container
+	DefaultNodeRegistrarRequestCPU = "12m" // MilliSeconds
+	// DefaultNodeRegistrarRequestMemory default memory resource request used for node registrar container
+	DefaultNodeRegistrarRequestMemory = "128Mi" // MB
+	// DefaultProvisionerRequestCPU default CPU resource request used for provisioner container
+	DefaultProvisionerRequestCPU = "12m" // MilliSeconds
+	// DefaultProvisionerRequestMemory default memory resource request used for node registrar container
+	DefaultProvisionerRequestMemory = "128Mi" // MB
+
 	// DefaultControllerResourceLimitCPU default CPU resource limit used for controller driver container
 	DefaultControllerResourceLimitCPU = "500m" // MilliSeconds
 	// DefaultControllerResourceLimitMemory default memory resource limit used for controller driver container
@@ -42,6 +62,14 @@ const (
 	DefaultNodeResourceLimitCPU = "600m" // MilliSeconds
 	// DefaultNodeResourceLimitMemory default memory resource limit used for node driver container
 	DefaultNodeResourceLimitMemory = "500Mi" // MB
+	// DefaultNodeRegistrarLimitCPU default CPU resource limit used for node registrar container
+	DefaultNodeRegistrarLimitCPU = "100m" // MilliSeconds
+	// DefaultNodeRegistrarLimitMemory default memory resource limit used for node registrar container
+	DefaultNodeRegistrarLimitMemory = "128Mi" // MB
+	// DefaultProvisionerLimitCPU default CPU resource limit used for provisioner container
+	DefaultProvisionerLimitCPU = "250m" // MilliSeconds
+	// DefaultProvisionerLimitMemory default memory resource limit used for node registrar container
+	DefaultProvisionerLimitMemory = "250Mi" // MB
 
 	// DefaultDeviceMode default device manger used for deployment
 	DefaultDeviceMode = DeviceModeLVM

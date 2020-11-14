@@ -15,7 +15,7 @@ import (
 
 	"github.com/intel/pmem-csi/deploy"
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	"github.com/intel/pmem-csi/pkg/deployments"
 	"github.com/intel/pmem-csi/pkg/version"
 )

@@ -31,7 +31,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework/skipper"
 
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	pmemexec "github.com/intel/pmem-csi/pkg/exec"
 
 	"github.com/onsi/ginkgo"

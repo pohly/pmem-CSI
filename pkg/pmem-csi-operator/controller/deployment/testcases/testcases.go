@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	pmemtls "github.com/intel/pmem-csi/pkg/pmem-csi-operator/pmem-tls"
 
 	corev1 "k8s.io/api/core/v1"
@@ -42,19 +42,35 @@ func UpdateTests() []UpdateTest {
 		"nodeRegistrarImage": func(d *api.Deployment) {
 			d.Spec.NodeRegistrarImage = "still-no-such-registrar-image"
 		},
-		"controllerResources": func(d *api.Deployment) {
-			d.Spec.ControllerResources = &corev1.ResourceRequirements{
+		"controllerDriverResources": func(d *api.Deployment) {
+			d.Spec.ControllerDriverResources = &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("201m"),
 					corev1.ResourceMemory: resource.MustParse("101Mi"),
 				},
 			}
 		},
-		"nodeResources": func(d *api.Deployment) {
-			d.Spec.NodeResources = &corev1.ResourceRequirements{
+		"nodeDriverResources": func(d *api.Deployment) {
+			d.Spec.NodeDriverResources = &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("501m"),
 					corev1.ResourceMemory: resource.MustParse("501Mi"),
+				},
+			}
+		},
+		"provisionerResources": func(d *api.Deployment) {
+			d.Spec.ProvisionerResources = &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("101m"),
+					corev1.ResourceMemory: resource.MustParse("101Mi"),
+				},
+			}
+		},
+		"nodeRegistrarResources": func(d *api.Deployment) {
+			d.Spec.NodeRegistrarResources = &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("301m"),
+					corev1.ResourceMemory: resource.MustParse("301Mi"),
 				},
 			}
 		},
@@ -103,16 +119,44 @@ func UpdateTests() []UpdateTest {
 					"a": "b",
 				},
 			},
-			ControllerResources: &corev1.ResourceRequirements{
+			ControllerDriverResources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("20m"),
+					corev1.ResourceMemory: resource.MustParse("10Mi"),
+				},
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("200m"),
 					corev1.ResourceMemory: resource.MustParse("100Mi"),
 				},
 			},
-			NodeResources: &corev1.ResourceRequirements{
+			NodeDriverResources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("50m"),
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+				},
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("500m"),
 					corev1.ResourceMemory: resource.MustParse("500Mi"),
+				},
+			},
+			ProvisionerResources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+					corev1.ResourceMemory: resource.MustParse("10Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("200Mi"),
+				},
+			},
+			NodeRegistrarResources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("30m"),
+					corev1.ResourceMemory: resource.MustParse("30Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("300m"),
+					corev1.ResourceMemory: resource.MustParse("300Mi"),
 				},
 			},
 		},

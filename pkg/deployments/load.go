@@ -15,7 +15,7 @@ import (
 
 	"github.com/intel/pmem-csi/deploy"
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
-	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
+	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	"github.com/intel/pmem-csi/pkg/version"
 
 	corev1 "k8s.io/api/core/v1"
@@ -86,12 +86,20 @@ func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode base.DeviceM
 		case "CSIDriver":
 			obj.SetName(deployment.GetName())
 		case "StatefulSet":
-			if err := patchPodTemplate(obj, deployment, deployment.Spec.ControllerResources); err != nil {
+			resources := map[string]*corev1.ResourceRequirements{
+				"pmem-driver":          deployment.Spec.ControllerDriverResources,
+				"external-provisioner": deployment.Spec.ProvisionerResources,
+			}
+			if err := patchPodTemplate(obj, deployment, resources); err != nil {
 				// TODO: avoid panic
 				panic(fmt.Errorf("set controller resources: %v", err))
 			}
 		case "DaemonSet":
-			if err := patchPodTemplate(obj, deployment, deployment.Spec.NodeResources); err != nil {
+			resources := map[string]*corev1.ResourceRequirements{
+				"pmem-driver":      deployment.Spec.NodeDriverResources,
+				"driver-registrar": deployment.Spec.NodeRegistrarResources,
+			}
+			if err := patchPodTemplate(obj, deployment, resources); err != nil {
 				// TODO: avoid panic
 				panic(fmt.Errorf("set node resources: %v", err))
 			}
@@ -111,7 +119,7 @@ func LoadAndCustomizeObjects(kubernetes version.Version, deviceMode base.DeviceM
 	return loadObjects(kubernetes, deviceMode, patchYAML, patchUnstructured)
 }
 
-func patchPodTemplate(obj *unstructured.Unstructured, deployment api.Deployment, resources *corev1.ResourceRequirements) error {
+func patchPodTemplate(obj *unstructured.Unstructured, deployment api.Deployment, resources map[string]*corev1.ResourceRequirements) error {
 	if resources == nil {
 		return nil
 	}
@@ -136,22 +144,27 @@ func patchPodTemplate(obj *unstructured.Unstructured, deployment api.Deployment,
 	}
 
 	// Convert through JSON.
-	resourcesObj := map[string]interface{}{}
-	data, err := json.Marshal(resources)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(data, &resourcesObj); err != nil {
-		return err
+	resourceObj := func(r *corev1.ResourceRequirements) (map[string]interface{}, error) {
+		obj := map[string]interface{}{}
+		data, err := json.Marshal(r)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
 	}
 
 	containers := spec["containers"].([]interface{})
 	for _, container := range containers {
-		// Mimick the current operator behavior
-		// (https://github.com/intel/pmem-csi/issues/616) and apply
-		// the resource requirements to all containers.
 		container := container.(map[string]interface{})
-		container["resources"] = resourcesObj
+		containerName := container["name"].(string)
+		obj, err := resourceObj(resources[containerName])
+		if err != nil {
+			return err
+		}
+		container["resources"] = obj
 
 		// Override driver name in env var.
 		env := container["env"]
@@ -167,7 +180,7 @@ func patchPodTemplate(obj *unstructured.Unstructured, deployment api.Deployment,
 		}
 
 		var image string
-		switch container["name"].(string) {
+		switch containerName {
 		case "external-provisioner":
 			image = deployment.Spec.ProvisionerImage
 		case "driver-registrar":
