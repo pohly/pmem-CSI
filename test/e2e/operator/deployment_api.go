@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/intel/pmem-csi/pkg/apis/pmemcsi/base"
+	alphaapi "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1alpha1"
 	api "github.com/intel/pmem-csi/pkg/apis/pmemcsi/v1beta1"
 	"github.com/intel/pmem-csi/pkg/exec"
 	"github.com/intel/pmem-csi/pkg/k8sutil"
@@ -773,6 +774,84 @@ var _ = deploy.DescribeForSome("API", func(d *deploy.Deployment) bool {
 					validateDriver(deployment, fmt.Sprintf("recovered %s", name))
 				})
 			}
+		})
+	})
+
+	Context("conversion", func() {
+		getAlphaDeployment := func(name string) alphaapi.Deployment {
+			return alphaapi.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: alphaapi.DeploymentSpec{
+					DeploymentSpec: base.DeploymentSpec{
+						Image: dummyImage,
+					},
+				},
+			}
+		}
+		It("with default values", func() {
+			if d.HasOLM {
+				Skip("Conversion webhook is not supported by OLM")
+			}
+			alphaDep := getAlphaDeployment("alpha-default-values")
+			deploy.CreateAlphaDeploymentCR(f, alphaDep)
+
+			deployment := deploy.GetDeploymentCR(f, alphaDep.Name)
+
+			defer deploy.DeleteDeploymentCR(f, deployment.Name)
+
+			validateDriver(deployment, true)
+
+			// Expect to ruturn alpha object converting from stored beta CR
+			alphaCR := deploy.GetAlphaDeploymentCR(f, deployment.Name)
+			betaCR := deploy.GetDeploymentCR(f, deployment.Name)
+			Expect(alphaCR).ShouldNot(BeNil(), "get alpha CR")
+			Expect(alphaCR.Spec).Should(BeEquivalentTo(alphaDep.Spec), "alpha CR spec mismatch")
+			Expect(alphaCR.Status).Should(BeEquivalentTo(betaCR.Status), "alpha CR status mismatch")
+		})
+		It("with explicit values", func() {
+			if d.HasOLM {
+				Skip("Conversion webhook is not supported by OLM")
+			}
+			alphaDep := getAlphaDeployment("alpha-explicit-values")
+			alphaDep.Spec.NodeResources = &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+					corev1.ResourceMemory: resource.MustParse("25Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+				},
+			}
+			alphaDep.Spec.ControllerResources = &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("20m"),
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("200m"),
+					corev1.ResourceMemory: resource.MustParse("100Mi"),
+				},
+			}
+			deploy.CreateAlphaDeploymentCR(f, alphaDep)
+
+			deployment := deploy.GetDeploymentCR(f, alphaDep.Name)
+
+			Expect(deployment.Spec.NodeDriverResources).Should(BeEquivalentTo(alphaDep.Spec.NodeResources), "node driver resources")
+			Expect(deployment.Spec.ControllerDriverResources).Should(BeEquivalentTo(alphaDep.Spec.ControllerResources), "controller driver resources")
+
+			defer deploy.DeleteDeploymentCR(f, deployment.Name)
+
+			validateDriver(deployment, true)
+
+			// Expect to ruturn alpha object converting from stored beta CR
+			alphaCR := deploy.GetAlphaDeploymentCR(f, deployment.Name)
+			betaCR := deploy.GetDeploymentCR(f, deployment.Name)
+			Expect(alphaCR).ShouldNot(BeNil(), "get alpha CR")
+			Expect(alphaCR.Spec).Should(BeEquivalentTo(alphaDep.Spec), "alpha CR spec mismatch")
+			Expect(alphaCR.Status).Should(BeEquivalentTo(betaCR.Status), "alpha CR status mismatch")
 		})
 	})
 })
