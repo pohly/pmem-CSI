@@ -1,5 +1,5 @@
 bases:
-- ../kubernetes-base-lvm-coverage
+- ../kubernetes-base-lvm
 
 resources:
 - webhooks-rbac.yaml
@@ -14,6 +14,9 @@ patchesJSON6902:
     - op: add
       path: /spec/template/spec/containers/0/command/-
       value: -mode=webhooks
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: --schedulerListen=:8000
     - op: remove
       path: /spec/template/spec/containers/1
 - target:

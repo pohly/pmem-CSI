@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-controller
   namespace: default
 ---
@@ -20,7 +20,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-external-provisioner-cfg
   namespace: default
 rules:
@@ -92,7 +92,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-external-provisioner-runner
 rules:
 - apiGroups:
@@ -191,7 +191,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-csi-provisioner-role-cfg
   namespace: default
 roleRef:
@@ -223,7 +223,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-csi-provisioner-role
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -253,7 +253,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-controller
   namespace: default
 spec:
@@ -262,28 +262,13 @@ spec:
     targetPort: 10000
   selector:
     app: pmem-csi-controller
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
-  name: pmem-csi-controller-testing
-  namespace: default
-spec:
-  ports:
-  - port: 10002
-  selector:
-    app: pmem-csi-controller
-    pmem-csi.intel.com/deployment: lvm-testing
-  type: NodePort
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-metrics
   namespace: default
 spec:
@@ -292,14 +277,14 @@ spec:
     targetPort: 10010
   selector:
     app: pmem-csi-controller
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   type: NodePort
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-controller
   namespace: default
 spec:
@@ -307,7 +292,7 @@ spec:
   selector:
     matchLabels:
       app: pmem-csi-controller
-      pmem-csi.intel.com/deployment: lvm-testing
+      pmem-csi.intel.com/deployment: lvm-production
   serviceName: pmem-csi-controller
   template:
     metadata:
@@ -315,7 +300,7 @@ spec:
         pmem-csi.intel.com/scrape: containers
       labels:
         app: pmem-csi-controller
-        pmem-csi.intel.com/deployment: lvm-testing
+        pmem-csi.intel.com/deployment: lvm-production
         pmem-csi.intel.com/webhook: ignore
     spec:
       affinity:
@@ -341,10 +326,8 @@ spec:
         - -keyFile=/certs/tls.key
         - -drivername=$(PMEM_CSI_DRIVER_NAME)
         - -metricsListen=:10010
-        - -v=5
-        - -testEndpoint
-        - -coverprofile=/var/lib/pmem-csi-coverage/pmem-csi-driver-controller-*.out
         - -mode=webhooks
+        - --schedulerListen=:8000
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -357,7 +340,7 @@ spec:
           value: pmem-csi.intel.com
         - name: GODEBUG
           value: x509ignoreCN=0
-        image: intel/pmem-csi-driver-test:canary
+        image: intel/pmem-csi-driver:canary
         imagePullPolicy: IfNotPresent
         name: pmem-driver
         ports:
@@ -373,33 +356,8 @@ spec:
           name: plugin-socket-dir
         - mountPath: /tmp
           name: tmp-dir
-        - mountPath: /var/lib/pmem-csi-coverage
-          name: coverage-dir
-      - args:
-        - -s
-        - tcp-listen:10002,fork,reuseaddr
-        - unix-connect:/csi/csi-controller.sock
-        image: alpine/socat:1.0.3
-        name: socat
-        volumeMounts:
-        - mountPath: /csi
-          name: plugin-socket-dir
-      initContainers:
-      - command:
-        - chown
-        - -R
-        - pmem-csi:pmem-csi
-        - /var/lib/pmem-csi-coverage
-        image: intel/pmem-csi-driver-test:canary
-        imagePullPolicy: Always
-        name: coverage-init
-        securityContext:
-          privileged: true
-          runAsUser: 0
-        volumeMounts:
-        - mountPath: /var/lib/pmem-csi-coverage
-          name: coverage-dir
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
       serviceAccountName: pmem-csi-webhooks
       tolerations:
@@ -412,30 +370,26 @@ spec:
           secretName: pmem-csi-registry-secrets
       - emptyDir: {}
         name: tmp-dir
-      - hostPath:
-          path: /var/lib/pmem-csi-coverage
-          type: DirectoryOrCreate
-        name: coverage-dir
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi-node
   namespace: default
 spec:
   selector:
     matchLabels:
       app: pmem-csi-node
-      pmem-csi.intel.com/deployment: lvm-testing
+      pmem-csi.intel.com/deployment: lvm-production
   template:
     metadata:
       annotations:
         pmem-csi.intel.com/scrape: containers
       labels:
         app: pmem-csi-node
-        pmem-csi.intel.com/deployment: lvm-testing
+        pmem-csi.intel.com/deployment: lvm-production
         pmem-csi.intel.com/webhook: ignore
     spec:
       containers:
@@ -455,10 +409,8 @@ spec:
         - -drivername=$(PMEM_CSI_DRIVER_NAME)
         - -pmemPercentage=100
         - -metricsListen=:10010
-        - -v=5
-        - -testEndpoint
-        - -coverprofile=/var/lib/pmem-csi-coverage/pmem-csi-driver-node-*.out
         - -mode=both
+        - -deviceManager=fake
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -481,7 +433,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: intel/pmem-csi-driver-test:canary
+        image: intel/pmem-csi-driver:canary
         imagePullPolicy: IfNotPresent
         name: pmem-driver
         ports:
@@ -509,13 +461,10 @@ spec:
         - mountPath: /var/lib/pmem-csi.intel.com
           mountPropagation: Bidirectional
           name: pmem-state-dir
-        - mountPath: /var/lib/pmem-csi-coverage
-          name: coverage-dir
       - args:
         - -v=3
         - --kubelet-registration-path=/var/lib/kubelet/plugins/$(PMEM_CSI_DRIVER_NAME)/csi.sock
         - --csi-address=/csi/csi.sock
-        - -v=5
         env:
         - name: PMEM_CSI_DRIVER_NAME
           value: pmem-csi.intel.com
@@ -564,68 +513,12 @@ spec:
           path: /sys
           type: DirectoryOrCreate
         name: sys-dir
-      - hostPath:
-          path: /var/lib/pmem-csi-coverage
-          type: DirectoryOrCreate
-        name: coverage-dir
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  labels:
-    pmem-csi.intel.com/deployment: lvm-testing
-  name: pmem-csi-node-testing
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      app: pmem-csi-node-testing
-      pmem-csi.intel.com/deployment: lvm-testing
-  template:
-    metadata:
-      labels:
-        app: pmem-csi-node-testing
-        pmem-csi.intel.com/deployment: lvm-testing
-        pmem-csi.intel.com/webhook: ignore
-    spec:
-      containers:
-      - args:
-        - -s
-        - tcp-listen:9735,fork,reuseaddr
-        - unix-connect:/csi/csi.sock
-        image: alpine/socat:1.0.3
-        name: socat
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - mountPath: /csi
-          name: socket-dir
-        - mountPath: /var/lib/kubelet/pods
-          mountPropagation: Bidirectional
-          name: mountpoint-dir
-        - mountPath: /var/lib/kubelet/plugins/kubernetes.io/csi/pv
-          mountPropagation: Bidirectional
-          name: staging-dir
-      hostNetwork: true
-      volumes:
-      - hostPath:
-          path: /var/lib/kubelet/plugins/pmem-csi.intel.com
-          type: DirectoryOrCreate
-        name: socket-dir
-      - hostPath:
-          path: /var/lib/kubelet/plugins/kubernetes.io/csi/pv
-          type: DirectoryOrCreate
-        name: staging-dir
-      - hostPath:
-          path: /var/lib/kubelet/pods
-          type: DirectoryOrCreate
-        name: mountpoint-dir
 ---
 apiVersion: storage.k8s.io/v1beta1
 kind: CSIDriver
 metadata:
   labels:
-    pmem-csi.intel.com/deployment: lvm-testing
+    pmem-csi.intel.com/deployment: lvm-production
   name: pmem-csi.intel.com
 spec:
   attachRequired: false

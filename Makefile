@@ -180,7 +180,7 @@ KUSTOMIZE += $(subst kubernetes-base,kubernetes-1.19-alpha,$(subst X.XX,1.19-alp
 KUSTOMIZE += deploy/common/pmem-storageclass-default.yaml=deploy/kustomize/storageclass
 
 # Special case for distributed provisioning with https://github.com/kubernetes-csi/external-provisioner/issues/487
-KUSTOMIZE += $(foreach version,$(KUSTOMIZE_KUBERNETES_VERSIONS),$(subst X.XX,$(version),deploy/kubernetes-X.XX-distributed/pmem-csi-lvm-testing.yaml=deploy/kustomize/kubernetes-distributed-lvm-coverage))
+KUSTOMIZE += $(foreach version,$(KUSTOMIZE_KUBERNETES_VERSIONS),$(subst X.XX,$(version),deploy/kubernetes-X.XX-distributed/pmem-csi-lvm.yaml=deploy/kustomize/kubernetes-distributed-lvm deploy/kubernetes-X.XX-distributed/pmem-csi-fake.yaml=deploy/kustomize/kubernetes-distributed-fake))
 
 KUSTOMIZE += deploy/common/pmem-storageclass-ext4.yaml=deploy/kustomize/storageclass-ext4
 KUSTOMIZE += deploy/common/pmem-storageclass-xfs.yaml=deploy/kustomize/storageclass-xfs
