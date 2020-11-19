@@ -53,7 +53,8 @@ operator-courier-image: _work/operator-courier-$(OPERATOR_COURIER_VERSION)
 
 MANIFESTS_DIR=deploy/kustomize/olm-catalog
 CATALOG_DIR=deploy/olm-catalog
-BUNDLE_DIR=deploy/bundle
+# cannot be changed, "generate bundle --output-dir" is broken (empty manifest files):
+BUNDLE_DIR=bundle
 CRD_DIR=deploy/crd
 
 KUBECONFIG := $(shell echo $(PWD)/_work/$(CLUSTER)/kube.config)
@@ -91,14 +92,15 @@ operator-validate-catalog: operator-courier-image
         fi
 
 # Generate OLM bundle. OperatorHub/OLM still does not support bundle format
-# but soon it will move from 'packagemanifests' to 'bundles'.
-# TODO: this seems unused and/or broken. Remove it?
+# but soon it will move from 'packagemanifests' to 'bundles'. Red Hat
+# already uses it for OpenShift.
 operator-generate-bundle: _work/bin/operator-sdk-$(OPERATOR_SDK_VERSION) _work/kustomize operator-generate-crd
-	@echo "Generating operator bundle in $(OPERATOR_OUTPUT_DIR) ..."
-	@_work/kustomize build --load_restrictor=none $(MANIFESTS_DIR) | $< generate bundle  --version=$(MAJOR_MINOR_PATCH_VERSION) \
-        --kustomize-dir=$(MANIFESTS_DIR) --output-dir=$(BUNDLE_DIR)
-	@$(PATCH_VERSIONS) $(OPERATOR_OUTPUT_DIR)/pmem-csi-operator.clusterserviceversion.yaml
-	@$(PATCH_DATE) $(OPERATOR_OUTPUT_DIR)/pmem-csi-operator.clusterserviceversion.yaml
+	@rm -rf $(BUNDLE_DIR)
+	@echo "Generating operator bundle in $(BUNDLE_DIR) ..."
+	@_work/kustomize build --load_restrictor=none $(MANIFESTS_DIR) | \
+	     $< generate bundle  --verbose --version=$(MAJOR_MINOR_PATCH_VERSION) --kustomize-dir $(MANIFESTS_DIR)
+	@$(PATCH_VERSIONS) $(BUNDLE_DIR)/manifests/pmem-csi-operator.clusterserviceversion.yaml
+	@$(PATCH_DATE) $(BUNDLE_DIR)/manifests/pmem-csi-operator.clusterserviceversion.yaml
 
 .PHONY: operator-generate
 operator-generate: operator-generate-crd operator-generate-catalog
