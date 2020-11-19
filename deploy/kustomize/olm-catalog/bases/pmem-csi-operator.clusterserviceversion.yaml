@@ -1,3 +1,7 @@
+# This file contains manual definitions for the operator meta data.
+# It is used during "make operator-generate-catalog" via
+# "generate packagemanifests --kustomize-dir deploy/kustomize/olm-catalog"
+
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
