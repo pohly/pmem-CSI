@@ -39,6 +39,8 @@ func init() {
 	flag.StringVar(&config.KeyFile, "keyFile", "pmem-registry-key.pem", "Private key file associated to certificate")
 	flag.StringVar(&config.ClientCertFile, "clientCertFile", "", "Client SSL certificate file to use for authenticating peer connections (optional, the files specified with -certFile and -keyFile are used if unset)")
 	flag.StringVar(&config.ClientKeyFile, "clientKeyFile", "", "Client private key associated with client certificate (optional, the files specified with -certFile and -keyFile are used if unset)")
+	flag.Float64Var(&config.KubeAPIQPS, "kube-api-qps", 5, "QPS to use while communicating with the Kubernetes apiserver. Defaults to 5.0.")
+	flag.IntVar(&config.KubeAPIBurst, "kube-api-burst", 10, "Burst to use while communicating with the Kubernetes apiserver. Defaults to 10.")
 
 	/* metrics options */
 	flag.StringVar(&config.metricsListen, "metricsListen", "", "listen address (like :8001) for prometheus metrics endpoint, disabled by default")

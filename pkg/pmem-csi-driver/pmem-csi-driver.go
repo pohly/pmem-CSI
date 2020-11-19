@@ -148,6 +148,14 @@ type Config struct {
 	// PmemPercentage percentage of space to be used by the driver in each PMEM region
 	PmemPercentage uint
 
+	// KubeAPIQPS is the average rate of requests to the Kubernetes API server,
+	// enforced locally in client-go.
+	KubeAPIQPS float64
+
+	// KubeAPIQPS is the number of requests that a client is
+	// allowed to send above the average rate of request.
+	KubeAPIBurst int
+
 	// parameters for Kubernetes scheduler extender
 	schedulerListen string
 
@@ -267,7 +275,7 @@ func (csid *csiDriver) Run() error {
 	var client kubernetes.Interface
 	if config.schedulerListen != "" ||
 		csid.cfg.Mode == Both {
-		c, err := k8sutil.NewClient() // TODO: QPS + burst settings
+		c, err := k8sutil.NewClient(config.KubeAPIQPS, config.KubeAPIBurst)
 		if err != nil {
 			return fmt.Errorf("connect to apiserver: %v", err)
 		}
@@ -342,7 +350,8 @@ func (csid *csiDriver) Run() error {
 		services := []grpcserver.Service{ids, ns}
 		if csid.cfg.TestEndpoint || csid.cfg.Mode == Both {
 			services = append(services, cs)
-
+		}
+		if csid.cfg.Mode == Both {
 			// Run external-provisioner *inside* the same process.
 			go csid.runExternalProvisioner(ctx, cancel, client)
 		}

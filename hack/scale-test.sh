@@ -55,6 +55,8 @@ install_pmem_csi () (
     kubectl delete --wait -f deploy/kubernetes-1.19-distributed/pmem-csi-fake.yaml || true
     kubectl delete -k deploy/kustomize/vpa-for-pmem-csi || true
 
+    # TODO: QPS/burst settings for external-provisioner in *both* modes
+
     # Reinstall.
     yaml=
     case "$mode" in
