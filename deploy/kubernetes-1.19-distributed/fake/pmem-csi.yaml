@@ -328,6 +328,8 @@ spec:
         - -metricsListen=:10010
         - -mode=webhooks
         - --schedulerListen=:8000
+        - -kube-api-qps=5.0
+        - -kube-api-burst=10
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -410,6 +412,8 @@ spec:
         - -pmemPercentage=100
         - -metricsListen=:10010
         - -mode=both
+        - -kube-api-qps=5.0
+        - -kube-api-burst=10
         - -deviceManager=fake
         env:
         - name: KUBE_NODE_NAME

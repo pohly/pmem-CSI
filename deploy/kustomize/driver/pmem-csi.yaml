@@ -128,6 +128,8 @@ spec:
         - --strict-topology=true
         - --timeout=5m
         - --default-fstype=ext4 # see https://github.com/kubernetes-csi/external-provisioner/issues/328#issuecomment-714801581
+        - --kube-api-qps=5.0
+        - --kube-api-burst=10
         securityContext:
           readOnlyRootFilesystem: true
         volumeMounts:

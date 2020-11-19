@@ -17,6 +17,12 @@ patchesJSON6902:
     - op: add
       path: /spec/template/spec/containers/0/command/-
       value: --schedulerListen=:8000
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -kube-api-qps=5.0
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -kube-api-burst=10
     - op: remove
       path: /spec/template/spec/containers/1
 - target:
@@ -28,6 +34,12 @@ patchesJSON6902:
     - op: add
       path: /spec/template/spec/containers/0/command/-
       value: -mode=both
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -kube-api-qps=5.0
+    - op: add
+      path: /spec/template/spec/containers/0/command/-
+      value: -kube-api-burst=10
 
 patchesStrategicMerge:
 - |-

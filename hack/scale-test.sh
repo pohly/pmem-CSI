@@ -55,8 +55,6 @@ install_pmem_csi () (
     kubectl delete --wait -f deploy/kubernetes-1.19-distributed/pmem-csi-fake.yaml || true
     kubectl delete -k deploy/kustomize/vpa-for-pmem-csi || true
 
-    # TODO: QPS/burst settings for external-provisioner in *both* modes
-
     # Reinstall.
     yaml=
     case "$mode" in
@@ -69,8 +67,10 @@ install_pmem_csi () (
     esac
     test/setup-ca-kubernetes.sh
     # Unmerged features are needed, therefore custom images have to be used.
+    # QPS gets set so high that it shouldn't be the limiting factor.
     sed \
-        -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-20201119;' \
+        -e 's;kube-api-qps=.*;kube-api-qps=100000;' \
+        -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-20201119-2;' \
         $yaml | kubectl create -f -
 
     # Tell Vertical Pod Autoscaler to provide recommendations for the PMEM-CSI StatefulSet

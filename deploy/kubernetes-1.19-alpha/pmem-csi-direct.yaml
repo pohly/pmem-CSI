@@ -282,6 +282,8 @@ spec:
         - --strict-topology=true
         - --timeout=5m
         - --default-fstype=ext4
+        - --kube-api-qps=5.0
+        - --kube-api-burst=10
         - --metrics-address=:10011
         env:
         - name: POD_NAMESPACE
