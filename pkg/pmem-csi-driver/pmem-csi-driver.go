@@ -35,6 +35,8 @@ import (
 
 	// For external-provisioner.
 	ctrl "github.com/kubernetes-csi/external-provisioner/pkg/controller"
+	"github.com/kubernetes-csi/external-provisioner/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	storagelistersv1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/util/workqueue"
 	csitrans "k8s.io/csi-translation-lib"
@@ -512,6 +514,8 @@ func (csid *csiDriver) startHTTPSServer(ctx context.Context, cancel func(), list
 // of PMEM-CSI.
 func (csid *csiDriver) runExternalProvisioner(ctx context.Context, cancel func(), clientset kubernetes.Interface) {
 	defer cancel()
+
+	utilfeature.DefaultMutableFeatureGate.Set(string(features.Topology + "=true"))
 
 	// TODO: make these configurable
 	workerThreads := 100
