@@ -165,6 +165,9 @@ apiServer:
 controllerManager:
   extraArgs:
     feature-gates: ${TEST_FEATURE_GATES}
+    # Increase volume provisioning by not throttling the kube-controller-manager at all.
+    kube-api-burst: \"100000\"
+    kube-api-qps: \"100000\"
 scheduler:
   extraVolumes:
     - name: config
