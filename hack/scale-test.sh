@@ -153,7 +153,7 @@ STORAGE_CLASS: pmem-csi-sc
 START_PODS: false
 EOF
 
-        (cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=5 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
+        (cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
 
         # Get VPA recommendations.
         kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.txt
