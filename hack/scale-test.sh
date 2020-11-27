@@ -94,6 +94,14 @@ install_pmem_csi () (
         sleep 5
     done
 
+    # Dump output in the background.
+    mkdir -p $result_dir/$mode
+    kubectl get pods -o=jsonpath='{range .items[*]}{"\n"}{.metadata.name}{" "}{.spec.nodeName}{" "}{range .spec.containers[*]}{.name}{" "}{end}{end}' | while read -r pod node containers; do
+        for container in $containers; do
+            kubectl logs -f $pod $container >$result_dir/$mode/$node.$pod.$container.log &
+        done
+    done
+
     kubectl apply -f - <<EOF
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -119,9 +127,9 @@ dump_state () (
 
     mkdir -p $dir
     kubectl get -o yaml pv >$dir/pv.yaml
-    kubectl describe pv >$dir/pv.txt
+    kubectl describe pv >$dir/pv.log
     kubectl get -o yaml --all-namespaces pvc >$dir/pvc.yaml
-    kubectl describe --all-namespaces pvc >$dir/pvc.txt
+    kubectl describe --all-namespaces pvc >$dir/pvc.log
 )
 
 run_tests () (
@@ -167,7 +175,7 @@ EOF
         (trap "dump_state $test_dir/after" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
 
         # Get VPA recommendations.
-        kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.txt
+        kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.log
         kubectl get -o yaml vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.yaml
     done
 )
