@@ -114,6 +114,15 @@ install_clusterloader () (
     git checkout FETCH_HEAD
 )
 
+dump_state () (
+    dir=$1
+
+    mkdir -p $dir
+    kubectl get -o yaml pv >$dir/pv.yaml
+    kubectl describe pv >$dir/pv.txt
+    kubectl get -o yaml --all-namespaces pvc >$dir/pvc.yaml
+    kubectl describe --all-namespaces pvc >$dir/pvc.txt
+)
 
 run_tests () (
     mode=$1
@@ -138,6 +147,8 @@ run_tests () (
 
 GATHER_METRICS: false
 
+STEP_TIME_SECONDS: $expected_duration
+
 VOLUMES_PER_POD: 1
 NODES_PER_NAMESPACE: $num_nodes # one namespace is enough
 PODS_PER_NODE: $volumes_per_node
@@ -153,7 +164,7 @@ STORAGE_CLASS: pmem-csi-sc
 START_PODS: false
 EOF
 
-        (cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
+        (trap "dump_state $test_dir/after" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
 
         # Get VPA recommendations.
         kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.txt
