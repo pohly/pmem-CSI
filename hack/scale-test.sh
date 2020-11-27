@@ -157,6 +157,9 @@ GATHER_METRICS: false
 
 STEP_TIME_SECONDS: $expected_duration
 
+# Ignore PVs from other provisioners.
+EXPECTED_PROVISIONER: pmem-csi.intel.com
+
 VOLUMES_PER_POD: 1
 NODES_PER_NAMESPACE: $num_nodes # one namespace is enough
 PODS_PER_NODE: $volumes_per_node
