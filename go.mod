@@ -13,6 +13,7 @@ require (
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.4.2
+	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.8.1
@@ -47,6 +48,7 @@ require (
 	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 	sigs.k8s.io/controller-runtime v0.6.2
 	sigs.k8s.io/sig-storage-lib-external-provisioner/v6 v6.1.0
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
