@@ -38,7 +38,7 @@ num_volumes=$(($expected_rate * $expected_duration))
 
 # Testing at different rates of PVCs per second is necessary to
 # determine where the maximum supported rate is.
-volume_rates="050 100 150"
+volume_rates="150"
 
 modes="distributed central"
 
@@ -140,7 +140,7 @@ run_tests () (
     actual_num_volumes=$(($num_nodes * $volumes_per_node))
     for rate in $volume_rates; do
         unique_name=$mode-qps-$rate-volumes-$num_volumes
-        short_unique_name=$mode-$rate-$num_volumes # used by run-e2e-test.sh
+        short_unique_name=$mode
         test_dir=$result_dir/$unique_name
         mkdir $test_dir
 
