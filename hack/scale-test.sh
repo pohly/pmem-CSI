@@ -70,7 +70,8 @@ install_pmem_csi () (
     # QPS gets set so high that it shouldn't be the limiting factor.
     sed \
         -e 's;kube-api-qps=.*;kube-api-qps=100000;' \
-        -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-20201119-2;' \
+        -e 's;-v=3;-v=5;' \
+        -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-2020-11-30;' \
         $yaml | kubectl create -f -
 
     # Tell Vertical Pod Autoscaler to provide recommendations for the PMEM-CSI StatefulSet
@@ -130,6 +131,8 @@ dump_state () (
     kubectl describe pv >$dir/pv.log
     kubectl get -o yaml --all-namespaces pvc >$dir/pvc.yaml
     kubectl describe --all-namespaces pvc >$dir/pvc.log
+
+    echo $(grep -r "conflict during PVC update" $result_dir/$mode | wc -l) >$dir/conflicts.log
 )
 
 run_tests () (

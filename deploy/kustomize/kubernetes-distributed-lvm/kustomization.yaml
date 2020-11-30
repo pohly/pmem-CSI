@@ -52,7 +52,7 @@ patchesStrategicMerge:
       spec:
         # Simplify RBAC rules, add access to pods.
         serviceAccountName: pmem-csi-webhooks
-# ... and instead add external-provisioner to each node, by building it into the PMEM-CSI driver binary.
+# ... and instead add external-provisioner to each node.
 - |-
   apiVersion: apps/v1
   kind: DaemonSet
@@ -63,11 +63,30 @@ patchesStrategicMerge:
       spec:
         serviceAccountName: pmem-csi-controller
         containers:
-          - name: pmem-driver
+          - name: external-provisioner
+            image: pohly/csi-provisioner:2020-11-30-3
+            imagePullPolicy: IfNotPresent
+            args:
+            - -v=3
+            - --csi-address=/csi/csi.sock
+            - --feature-gates=Topology=true
+            - --node-deployment
+            - --node-deployment-base-delay=1s
+            - --strict-topology=true
+            - --immediate-topology=false
+            - --timeout=5m
+            - --default-fstype=ext4 # see https://github.com/kubernetes-csi/external-provisioner/issues/328#issuecomment-714801581
+            # Basically never slow down client-side... only useful this way for scale testing.
+            - --kube-api-qps=10000
+            - --kube-api-burst=10000
+            securityContext:
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
             env:
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-
