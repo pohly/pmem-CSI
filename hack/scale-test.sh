@@ -139,7 +139,9 @@ run_tests () (
     volumes_per_node=$(($num_volumes / $num_nodes))
     actual_num_volumes=$(($num_nodes * $volumes_per_node))
     for rate in $volume_rates; do
-        test_dir=$result_dir/$mode-qps-$rate-volumes-$num_volumes
+        unique_name=$mode-qps-$rate-volumes-$num_volumes
+        short_unique_name=$mode-$rate-$num_volumes # used by run-e2e-test.sh
+        test_dir=$result_dir/$unique_name
         mkdir $test_dir
 
         cat >$test_dir/overrides.yaml <<EOF
