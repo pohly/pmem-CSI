@@ -64,7 +64,7 @@ patchesStrategicMerge:
         serviceAccountName: pmem-csi-controller
         containers:
           - name: external-provisioner
-            image: pohly/csi-provisioner:2020-11-30-3
+            image: pohly/csi-provisioner:2020-11-30-4
             imagePullPolicy: IfNotPresent
             args:
             - -v=3
