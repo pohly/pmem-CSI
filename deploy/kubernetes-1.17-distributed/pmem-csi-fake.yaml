@@ -482,7 +482,7 @@ spec:
         - --csi-address=/csi/csi.sock
         - --feature-gates=Topology=true
         - --node-deployment
-        - --node-deployment-base-delay=1s
+        - --node-deployment-base-delay=10s
         - --node-deployment-max-delay=60s
         - --node-deployment-alpha=0.0
         - --strict-topology=true
@@ -497,7 +497,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: pohly/csi-provisioner:2020-12-01-6
+        image: pohly/csi-provisioner:2020-12-01-7
         imagePullPolicy: IfNotPresent
         name: external-provisioner
         securityContext:
