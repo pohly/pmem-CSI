@@ -71,7 +71,7 @@ patchesStrategicMerge:
             - --csi-address=/csi/csi.sock
             - --feature-gates=Topology=true
             - --node-deployment
-            - --node-deployment-base-delay=1s
+            - --node-deployment-base-delay=10s
             - --strict-topology=true
             - --immediate-topology=false
             - --timeout=5m
