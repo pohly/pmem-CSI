@@ -494,7 +494,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: pohly/csi-provisioner:2020-12-01-5
+        image: pohly/csi-provisioner:2020-12-01-6
         imagePullPolicy: IfNotPresent
         name: external-provisioner
         securityContext:
