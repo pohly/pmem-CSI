@@ -132,7 +132,7 @@ dump_state () (
     kubectl get -o yaml --all-namespaces pvc >$dir/pvc.yaml
     kubectl describe --all-namespaces pvc >$dir/pvc.log
 
-    echo $(grep -r "conflict during PVC update" $result_dir/$mode | wc -l) >$dir/conflicts.log
+    echo $(grep -r "conflict during PVC.*update" $result_dir/$mode | wc -l) >$dir/conflicts.log
 )
 
 run_tests () (
