@@ -483,7 +483,7 @@ spec:
         - --node-deployment
         - --node-deployment-base-delay=10s
         - --node-deployment-max-delay=60s
-        - --node-deployment-alpha=0.1
+        - --node-deployment-alpha=0.0
         - --strict-topology=true
         - --immediate-topology=false
         - --timeout=5m
