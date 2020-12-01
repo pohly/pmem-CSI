@@ -160,7 +160,7 @@ run_tests () (
 
 GATHER_METRICS: false
 
-STEP_TIME_SECONDS: $expected_duration
+STEP_TIME_SECONDS: $(($expected_duration * 3))
 
 # Ignore PVs from other provisioners.
 EXPECTED_PROVISIONER: pmem-csi.intel.com
