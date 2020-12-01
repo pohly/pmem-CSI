@@ -72,6 +72,8 @@ patchesStrategicMerge:
             - --feature-gates=Topology=true
             - --node-deployment
             - --node-deployment-base-delay=1s
+            - --node-deployment-max-delay=60s
+            - --node-deployment-alpha=0.0
             - --strict-topology=true
             - --immediate-topology=false
             - --timeout=5m
