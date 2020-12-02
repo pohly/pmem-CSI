@@ -80,7 +80,7 @@ install_pmem_csi () (
         -e 's;kube-api-qps=.*;kube-api-qps=100000;' \
         -e 's;-v=3;-v=5;' \
         -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-2020-11-30;' \
-        -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-01-8;' \
+        -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-02-2;' \
         -e "s;node-deployment-base-delay=.*;node-deployment-base-delay=$base;" \
         -e "s;node-deployment-max-delay=.*;node-deployment-max-delay=$max;" \
         -e "s;node-deployment-alpha=.*;node-deployment-alpha=$alpha;" \
@@ -178,7 +178,7 @@ run_tests () (
 
 GATHER_METRICS: false
 
-STEP_TIME_SECONDS: $expected_duration
+STEP_TIME_SECONDS: $(($expected_duration * 3))
 
 # Ignore PVs from other provisioners.
 EXPECTED_PROVISIONER: pmem-csi.intel.com

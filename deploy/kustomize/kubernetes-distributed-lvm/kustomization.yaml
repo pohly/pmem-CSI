@@ -64,7 +64,7 @@ patchesStrategicMerge:
         serviceAccountName: pmem-csi-controller
         containers:
           - name: external-provisioner
-            image: pohly/csi-provisioner:2020-12-01-8
+            image: pohly/csi-provisioner:2020-12-02-1
             imagePullPolicy: IfNotPresent
             args:
             - -v=3
@@ -76,6 +76,7 @@ patchesStrategicMerge:
             - --node-deployment-alpha=0.0
             - --strict-topology=true
             - --immediate-topology=false
+            - --local-topology
             - --timeout=5m
             - --default-fstype=ext4 # see https://github.com/kubernetes-csi/external-provisioner/issues/328#issuecomment-714801581
             # Basically never slow down client-side... only useful this way for scale testing.

@@ -487,6 +487,7 @@ spec:
         - --node-deployment-alpha=0.0
         - --strict-topology=true
         - --immediate-topology=false
+        - --local-topology
         - --timeout=5m
         - --default-fstype=ext4
         - --kube-api-qps=10000
