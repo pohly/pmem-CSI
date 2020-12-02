@@ -178,7 +178,7 @@ run_tests () (
 
 GATHER_METRICS: false
 
-STEP_TIME_SECONDS: $(($expected_duration * 5))
+STEP_TIME_SECONDS: $expected_duration
 
 # Ignore PVs from other provisioners.
 EXPECTED_PROVISIONER: pmem-csi.intel.com
@@ -215,8 +215,11 @@ for mode in $modes; do
     if [ $mode = "distributed" ]; then
         run_tests $mode 5s 60s 0
         run_tests $mode 20s 60s 0
-        run_tests $mode 5s 60s 0.01
-        run_tests $mode 5s 60s 0.1
-        run_tests $mode 5s 30s 0.1
+        run_tests $mode 5s 30s 0.01
+        run_tests $mode 5s 20s 0.01
+        run_tests $mode 5s 10s 0.01
+        run_tests $mode 5s 30s 0.001
+        run_tests $mode 5s 20s 0.001
+        run_tests $mode 5s 10s 0.001
     fi
 done
