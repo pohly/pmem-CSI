@@ -138,13 +138,13 @@ install_clusterloader () (
 dump_state () (
     dir=$1
 
-    mkdir -p $dir
-    kubectl get -o yaml pv >$dir/pv.yaml
-    kubectl describe pv >$dir/pv.log
-    kubectl get -o yaml --all-namespaces pvc >$dir/pvc.yaml
-    kubectl describe --all-namespaces pvc >$dir/pvc.log
+    mkdir -p $dir/after
+    kubectl get -o yaml pv >$dir/after/pv.yaml
+    kubectl describe pv >$dir/after/pv.log
+    kubectl get -o yaml --all-namespaces pvc >$dir/after/pvc.yaml
+    kubectl describe --all-namespaces pvc >$dir/after/pvc.log
 
-    echo $(grep -r "conflict during PVC.*update" $result_dir/$mode | wc -l) >$dir/conflicts.log
+    echo $(grep -r "conflict during PVC.*update" $dir/pmem-csi-logs | wc -l) >$dir/after/conflicts.log
 )
 
 run_tests () (
@@ -198,7 +198,7 @@ STORAGE_CLASS: pmem-csi-sc
 START_PODS: false
 EOF
 
-        (trap "dump_state $test_dir/after" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml) || true
+        (trap "dump_state $test_dir" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml) || true
 
         # Get VPA recommendations.
         kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.log
@@ -213,10 +213,10 @@ for mode in $modes; do
     run_tests $mode 10s 60s 0
 
     if [ $mode = "distributed" ]; then
-        run_tests $mode 1s 60s 0
+        run_tests $mode 5s 60s 0
         run_tests $mode 20s 60s 0
-        run_tests $mode 30s 60s 0
-        run_tests $mode 1s 60s 0.01
-        run_tests $mode 1s 60s 0.1
+        run_tests $mode 5s 60s 0.01
+        run_tests $mode 5s 60s 0.1
+        run_tests $mode 5s 30s 0.1
     fi
 done
