@@ -47,7 +47,15 @@ num_nodes=$(echo "$nodes" | wc -l)
 
 # mode is either "central" or "distributed"
 install_pmem_csi () (
+    test_dir=$1
+    shift
     mode=$1
+    shift
+    base=$1
+    shift
+    max=$1
+    shift
+    alpha=$1
 
     # Delete any previous objects. This fails when there isn't anything to delete,
     # so we ignore errors here (hack!).
@@ -72,7 +80,11 @@ install_pmem_csi () (
         -e 's;kube-api-qps=.*;kube-api-qps=100000;' \
         -e 's;-v=3;-v=5;' \
         -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-2020-11-30;' \
-        $yaml | kubectl create -f -
+        -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-01-8;' \
+        -e "s;node-deployment-base-delay=.*;node-deployment-base-delay=$base;" \
+        -e "s;node-deployment-max-delay=.*;node-deployment-max-delay=$max;" \
+        -e "s;node-deployment-alpha=.*;node-deployment-alpha=$alpha;" \
+        $yaml | tee $test_dir/pmem-csi.yaml | kubectl create -f -
 
     # Tell Vertical Pod Autoscaler to provide recommendations for the PMEM-CSI StatefulSet
     # and DaemonSet. This also covers external-provisioner and driver-registrar.
@@ -96,10 +108,10 @@ install_pmem_csi () (
     done
 
     # Dump output in the background.
-    mkdir -p $result_dir/$mode
+    mkdir -p $test_dir/pmem-csi-logs
     kubectl get pods -o=jsonpath='{range .items[*]}{"\n"}{.metadata.name}{" "}{.spec.nodeName}{" "}{range .spec.containers[*]}{.name}{" "}{end}{end}' | while read -r pod node containers; do
         for container in $containers; do
-            kubectl logs -f $pod $container >$result_dir/$mode/$node.$pod.$container.log &
+            kubectl logs -f $pod $container >$test_dir/pmem-csi-logs/$node.$pod.$container.log &
         done
     done
 
@@ -137,15 +149,21 @@ dump_state () (
 
 run_tests () (
     mode=$1
-    install_pmem_csi $mode
+    shift
+    base=$1
+    shift
+    max=$1
+    shift
+    alpha=$1
 
     volumes_per_node=$(($num_volumes / $num_nodes))
     actual_num_volumes=$(($num_nodes * $volumes_per_node))
     for rate in $volume_rates; do
-        unique_name=$mode-qps-$rate-volumes-$num_volumes
-        short_unique_name=$mode
+        unique_name=$mode-qps-$rate-volumes-$num_volumes-base-$base-max-$max-alpha-$alpha
+        short_unique_name=$mode-q-$rate-v-$num_volumes-b-$base-m-$max-a-$alpha
         test_dir=$result_dir/$unique_name
-        mkdir $test_dir
+        mkdir -p $test_dir
+        install_pmem_csi $test_dir $mode $base $max $alpha
 
         cat >$test_dir/overrides.yaml <<EOF
 # Should be turned on if possible. In the PMEM-CSI QEMU cluster
@@ -160,7 +178,7 @@ run_tests () (
 
 GATHER_METRICS: false
 
-STEP_TIME_SECONDS: $(($expected_duration * 3))
+STEP_TIME_SECONDS: $(($expected_duration * 5))
 
 # Ignore PVs from other provisioners.
 EXPECTED_PROVISIONER: pmem-csi.intel.com
@@ -180,7 +198,7 @@ STORAGE_CLASS: pmem-csi-sc
 START_PODS: false
 EOF
 
-        (trap "dump_state $test_dir/after" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml)
+        (trap "dump_state $test_dir/after" EXIT; cd _work/perf-tests/clusterloader2 && go run cmd/clusterloader.go -v=3 --report-dir=$test_dir --kubeconfig=$KUBECONFIG --provider=local --nodes=$num_nodes --testconfig=testing/experimental/storage/pod-startup/config.yaml --testoverrides=testing/experimental/storage/pod-startup/volume-types/persistentvolume/override.yaml --testoverrides=$test_dir/overrides.yaml) || true
 
         # Get VPA recommendations.
         kubectl describe vpa/pmem-csi-controller vpa/pmem-csi-node >$test_dir/vpa.log
@@ -192,5 +210,13 @@ EOF
 install_clusterloader
 
 for mode in $modes; do
-    run_tests $mode
+    run_tests $mode 10s 60s 0
+
+    if [ $mode = "distributed" ]; then
+        run_tests $mode 1s 60s 0
+        run_tests $mode 20s 60s 0
+        run_tests $mode 30s 60s 0
+        run_tests $mode 1s 60s 0.01
+        run_tests $mode 1s 60s 0.1
+    fi
 done
