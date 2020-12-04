@@ -78,9 +78,9 @@ install_pmem_csi () (
     # QPS gets set so high that it shouldn't be the limiting factor.
     sed \
         -e 's;kube-api-qps=.*;kube-api-qps=100000;' \
-        -e 's;-v=3;-v=5;' \
+        -e 's;-v=3;-v=3;' \
         -e 's;intel/pmem-csi-driver:canary;pohly/pmem-csi-driver:canary-2020-11-30;' \
-        -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-03-1;' \
+        -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-04-1;' \
         -e "s;node-deployment-base-delay=.*;node-deployment-base-delay=$base;" \
         -e "s;node-deployment-max-delay=.*;node-deployment-max-delay=$max;" \
         -e "s;node-deployment-alpha=.*;node-deployment-alpha=$alpha;" \
@@ -210,9 +210,10 @@ EOF
 install_clusterloader
 
 for mode in $modes; do
-    run_tests $mode 10s 60s 0
+    run_tests $mode 10s 30s 0
 
     if [ $mode = "distributed" ]; then
-        run_tests $mode 20s 60s 0
+        run_tests $mode 20s 30s 0
+        run_tests $mode 30s 60s 0
     fi
 done
