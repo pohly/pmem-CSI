@@ -156,7 +156,7 @@ run_tests () (
     actual_num_volumes=$(($num_nodes * $volumes_per_node))
     for rate in $volume_rates; do
         unique_name=$mode-qps-$rate-volumes-$num_volumes-base-$base-max-$max
-        short_unique_name=$mode-q-$rate-v-$num_volumes-b-$base-m-$max
+        short_unique_name=$mode-$rate-$num_volumes-$base-$max
         test_dir=$result_dir/$unique_name
         mkdir -p $test_dir
         install_pmem_csi $test_dir $mode $base $max
