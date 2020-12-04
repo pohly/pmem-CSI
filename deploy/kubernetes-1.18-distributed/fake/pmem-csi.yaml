@@ -484,7 +484,6 @@ spec:
         - --node-deployment
         - --node-deployment-base-delay=10s
         - --node-deployment-max-delay=60s
-        - --node-deployment-alpha=0.0
         - --strict-topology=true
         - --immediate-topology=false
         - --local-topology
@@ -498,7 +497,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: pohly/csi-provisioner:2020-12-01-8
+        image: pohly/csi-provisioner:2020-12-02-1
         imagePullPolicy: IfNotPresent
         name: external-provisioner
         securityContext:

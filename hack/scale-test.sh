@@ -54,8 +54,6 @@ install_pmem_csi () (
     base=$1
     shift
     max=$1
-    shift
-    alpha=$1
 
     # Delete any previous objects. This fails when there isn't anything to delete,
     # so we ignore errors here (hack!).
@@ -83,7 +81,6 @@ install_pmem_csi () (
         -e 's;pohly/csi-provisioner:.*;pohly/csi-provisioner:2020-12-04-1;' \
         -e "s;node-deployment-base-delay=.*;node-deployment-base-delay=$base;" \
         -e "s;node-deployment-max-delay=.*;node-deployment-max-delay=$max;" \
-        -e "s;node-deployment-alpha=.*;node-deployment-alpha=$alpha;" \
         $yaml | tee $test_dir/pmem-csi.yaml | kubectl create -f -
 
     # Tell Vertical Pod Autoscaler to provide recommendations for the PMEM-CSI StatefulSet
@@ -154,16 +151,15 @@ run_tests () (
     shift
     max=$1
     shift
-    alpha=$1
 
     volumes_per_node=$(($num_volumes / $num_nodes))
     actual_num_volumes=$(($num_nodes * $volumes_per_node))
     for rate in $volume_rates; do
-        unique_name=$mode-qps-$rate-volumes-$num_volumes-base-$base-max-$max-alpha-$alpha
-        short_unique_name=$mode-q-$rate-v-$num_volumes-b-$base-m-$max-a-$alpha
+        unique_name=$mode-qps-$rate-volumes-$num_volumes-base-$base-max-$max
+        short_unique_name=$mode-q-$rate-v-$num_volumes-b-$base-m-$max
         test_dir=$result_dir/$unique_name
         mkdir -p $test_dir
-        install_pmem_csi $test_dir $mode $base $max $alpha
+        install_pmem_csi $test_dir $mode $base $max
 
         cat >$test_dir/overrides.yaml <<EOF
 # Should be turned on if possible. In the PMEM-CSI QEMU cluster
