@@ -97,7 +97,7 @@ install_pmem_csi () (
         if [ "$num_ready" ] && [ "$num_ready" -eq $num_nodes ]; then
             break
         fi
-        if [ $(($SECONDS - $start)) -gt 600 ]; then
+        if [ $(($SECONDS - $start)) -gt $(( 10 * $num_nodes / 100 )) ]; then
             echo "PMEM-CSI node pods not ready after 10 minutes"
             exit 1
         fi
