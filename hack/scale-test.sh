@@ -107,7 +107,9 @@ install_pmem_csi () (
     # Dump output in the background.
     mkdir -p $test_dir/pmem-csi-logs
     kubectl get pods -o=jsonpath='{range .items[*]}{"\n"}{.metadata.name}{" "}{.spec.nodeName}{" "}{range .spec.containers[*]}{.name}{" "}{end}{end}' | while read -r pod node containers; do
-        for container in $containers; do
+        # Doing it for $containers creates a log of background processes.
+        # We only need pmem-driver.
+        for container in pmem-driver; do
             kubectl logs -f $pod $container >$test_dir/pmem-csi-logs/$node.$pod.$container.log &
         done
     done
